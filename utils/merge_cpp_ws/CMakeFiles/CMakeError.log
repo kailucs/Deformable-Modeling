@@ -1,0 +1,34 @@
+Determining if the include file glpk.h exists failed with the following output:
+Change Dir: /home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_57abf/fast"
+/usr/bin/make -f CMakeFiles/cmTC_57abf.dir/build.make CMakeFiles/cmTC_57abf.dir/build
+make[1]: Entering directory '/home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_57abf.dir/CheckIncludeFile.cxx.o
+/usr/bin/c++     -Wall -Wno-error  -std=c++11    -o CMakeFiles/cmTC_57abf.dir/CheckIncludeFile.cxx.o -c /home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp/CheckIncludeFile.cxx
+/home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp/CheckIncludeFile.cxx:1:18: fatal error: glpk.h: No such file or directory
+compilation terminated.
+CMakeFiles/cmTC_57abf.dir/build.make:65: recipe for target 'CMakeFiles/cmTC_57abf.dir/CheckIncludeFile.cxx.o' failed
+make[1]: *** [CMakeFiles/cmTC_57abf.dir/CheckIncludeFile.cxx.o] Error 1
+make[1]: Leaving directory '/home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp'
+Makefile:126: recipe for target 'cmTC_57abf/fast' failed
+make: *** [cmTC_57abf/fast] Error 2
+
+
+Determining if the include file FreeImage.h exists failed with the following output:
+Change Dir: /home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp
+
+Run Build Command:"/usr/bin/make" "cmTC_77cc5/fast"
+/usr/bin/make -f CMakeFiles/cmTC_77cc5.dir/build.make CMakeFiles/cmTC_77cc5.dir/build
+make[1]: Entering directory '/home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_77cc5.dir/CheckIncludeFile.cxx.o
+/usr/bin/c++     -Wall -Wno-error  -std=c++11    -o CMakeFiles/cmTC_77cc5.dir/CheckIncludeFile.cxx.o -c /home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp/CheckIncludeFile.cxx
+/home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp/CheckIncludeFile.cxx:1:23: fatal error: FreeImage.h: No such file or directory
+compilation terminated.
+CMakeFiles/cmTC_77cc5.dir/build.make:65: recipe for target 'CMakeFiles/cmTC_77cc5.dir/CheckIncludeFile.cxx.o' failed
+make[1]: *** [CMakeFiles/cmTC_77cc5.dir/CheckIncludeFile.cxx.o] Error 1
+make[1]: Leaving directory '/home/motion/MEDX_workspace/cpp_ws/CMakeFiles/CMakeTmp'
+Makefile:126: recipe for target 'cmTC_77cc5/fast' failed
+make: *** [cmTC_77cc5/fast] Error 2
+
+
