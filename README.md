@@ -8,7 +8,7 @@ Reconstruct models of deformable objects using force probe technique and learnin
 ### Requirements
 
   * Hardware: UR5 (with force sensors), A computer with a dedicated GPU(recommended).
-  * OS: Ubuntu also compatible with CARLA (16.04)
+  * OS: Ubuntu 16.04
   * Necessary: UR API, Klamp't, Python 2.7
 
 ### Installation
