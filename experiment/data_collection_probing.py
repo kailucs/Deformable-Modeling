@@ -1,4 +1,4 @@
-import logging
+#import logging
 #logging.basicConfig(level=logging.INFO)
 import time
 import numpy as np
@@ -18,10 +18,10 @@ from scipy import signal
 #emulator
 #from RobotControllerEmulator import kill_controller_threads,UR5WithGripperController
 
-
+'''
 #CONTROLLER = 'simulation'
 CONTROLLER = 'physical'
-#CONTROLLER = 'debug'
+#CONTROLLER = 'debugging'
 
 ### Constants and Measurements
 tableHeight = 0.87
@@ -34,6 +34,8 @@ longServoTime=3
 IKErrorTolerence=4
 maxDev=1.2
 EEZLimit=0.956
+'''
+
 def controller_2_klampt(robot,controllerQ):
     qOrig=robot.getConfig()
     q=[v for v in qOrig]
@@ -62,22 +64,35 @@ def constantVServo(controller,servoTime,target,dt):
 
     return 0
 
-def run_poking():
+def run_poking(config):
 	##################################### Start here ################################
 	## Initialize things 
 	world = WorldModel()
-	fn = "data/ur5Blocks.xml" #correct UR5e model
-	res = world.readFile(fn)
+	res = world.readFile(config.robot_model_path)
 	robot = world.robot(0)
-	ee_link=7
+	ee_link=config.ee_link_number
 	link=robot.link(ee_link)
+	CONTROLLER = config.mode
+
+	### Constants and Measurements
+	tableHeight = config.tableHeight
+	probeLength = config.probeLength
+	forceLimit = config.forceLimit
+	dt=config.dt  #250Hz
+	moveStep=0.002*dt   #2mm /s
+
+	shortServoTime=config.shortServoTime
+	longServoTime=config.longServoTime+2 #TODO: set in config?
+	IKErrorTolerence=config.IKErrorTolerence
+	maxDev=config.maxDev
+	EEZLimit=config.EEZLimit
 
 	print '---------------------model loaded -----------------------------' 
 
 	########################## Read In the pcd ######################################
 	points=[]
 	normals=[]
-	dataFile=open('experiment_data/probePcd.txt','r')
+	dataFile=open(config.exp_path+'exp_'+str(config.exp_number)+'/probePcd.txt','r')
 	for line in dataFile:
 		line=line.rstrip()
 		l=[num for num in line.split(' ')]
@@ -88,20 +103,20 @@ def run_poking():
 
 	print '---------------------pcd loaded -----------------------------' 
 
-
+	# TODO: no use
 	if CONTROLLER == 'simulation':
 		controllerWorld = world.copy()
 
 	# control interface
 	elif CONTROLLER == 'physical':
-		robotControlApi = UR5WithGripperController(host='10.10.1.106',gripper=False)
+		robotControlApi = UR5WithGripperController(host=config.robot_host,gripper=False)
 		robotControlApi.start()
 		time.sleep(2)
 	print '---------------------robot started -----------------------------'
 
 	## Record some home configuration
-	homeConfig2=[-1.08105692024,-0.866032360067,1.67516698749,0.762010738422,1.57201803046,2.84750462606 , 0]#controller format
-	intermediateConfig = [-1.0812161604510706, -0.5610864919475098, 1.6372855345355433, 0.49511925756420894, 1.5732531547546387, 2.8483853340148926, 0]
+	homeConfig2=config.home_config2#controller format
+	intermediateConfig = config.intermediateConfig
 	homeConfig2 = intermediateConfig
 
 	if CONTROLLER == "physical":
@@ -113,11 +128,19 @@ def run_poking():
 
 
 
-	if CONTROLLER == 'debug':
+	if CONTROLLER == 'debugging':
 		vis.add("world",world)
 		differences=[]
-		for i in range(len(points)):
-		#for i in [0]:
+		print('[*]Debug: Poking process start')
+		#for i in range(len(points)):
+		# TODO:
+		point_list = input('There are %d poking point, input a list:'%len(points))
+		if point_list == len(points):
+			point_list == range(len(points))
+		
+		for i in point_list:
+			print('point %d'%i)
+			print points[i],normals[i]
 			robotCurrentConfig=homeConfig2
 			goalPosition=deepcopy(points[i])
 			approachVector=vectorops.unit(vectorops.mul(normals[i],-1.0))
@@ -213,21 +236,19 @@ def run_poking():
 				print "IK failture"
 				break
 
-			print i
 			### move back to intermediate config
-
 			robot.setConfig(controller_2_klampt(robot,intermediateConfig))
+		
+		print('[*]Debug: Poking process done, with max difference:%f'%max(differences))
 
-		print max(differences)
 	elif CONTROLLER == 'physical':
 		######################################## Ready to Take Measurements ################################################
-
-		K = np.arange(start = 132, stop = len(points)-1)
+		#TODO: arrange the point execute order
+		exe_number = input('There are %d poking point, input executing number:'%len(points))
+		point_list == random.sample(range(len(points)),exe_number)
+		#K = np.arange(start = 132, stop = len(points)-1)
 		#print K
-		#for i in range(len(points)):
-		for i in [139,140]:
-		#for i in [0]:	
-
+		for i in point_list:	
 			robotCurrentConfig=robotControlApi.getConfig()
 			robot.setConfig(controller_2_klampt(robot,robotCurrentConfig))
 			#calculate start position
@@ -280,7 +301,7 @@ def run_poking():
 			#print forceBias
 
 
-			forceData=open('experiment_data/force'+str(i)+'.txt','w')
+			forceData=open(config.exp_path+'exp_'+str(config.exp_number)+'/force'+str(i)+'.txt','w')
 			#numberData=open('numberData'+str(i)+'.txt','w')
 			### now start collecting data..
 			wrench = robotControlApi.getWrench()
@@ -315,8 +336,7 @@ def run_poking():
 				travel = travel + moveStep
 				forceHistory.append(Force)
 				displacementHistory.append(travel)
-
-
+			# TODO: x, y inverse, reference correct force.py
 
 			#record all the data in 2 files, one N*2 containts all the force data collected at various locations, another
 			#file specifies the number of datapoints at each detected point
@@ -348,21 +368,14 @@ def run_poking():
 				break
 			forceData.close()
 			
-
 			#### move back to intermediate config
-
 			constantVServo(robotControlApi,shortServoTime,intermediateConfig,dt)
-
-
 			#numberData.close()		
 			print'----------------------- pt '+str(i)+' completed -------------------------------'
 			
-			
-
-
 		robotControlApi.stop()
 
-	if CONTROLLER ==  "debug":
+	if CONTROLLER ==  "debugging":
 		vis.show()
 		while vis.shown():
 			time.sleep(1.0)
