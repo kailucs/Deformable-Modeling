@@ -1,5 +1,3 @@
-import logging
-#logging.basicConfig(level=logging.INFO)
 import time
 import numpy as np
 import cv2
@@ -19,11 +17,13 @@ from scipy import signal
 from copy import deepcopy   
 
 ### Constants and Measurements
+'''
 tableHeight = 0.852
 probeLength = 0.1
 forceLimit = 5
 dt=0.004
 moveStep=0.002*dt   #2mm /s
+'''
 
 def constantVServo(controller,servoTime,target,dt):
     currentTime=0.0
@@ -38,6 +38,7 @@ def constantVServo(controller,servoTime,target,dt):
         currentTime=currentTime+dt
 
     return 0
+
 def controller_2_klampt(robot,controllerQ):
     qOrig=robot.getConfig()
     q=[v for v in qOrig]
@@ -71,21 +72,27 @@ def save_pcd(dev,name,number,transformCameraInWorld):
     #print se3.apply(transformCameraInWorld,p[111][166]),se3.apply(transformCameraInWorld,p[111][477])
     #print se3.apply(transformCameraInWorld,p[380][166]),se3.apply(transformCameraInWorld,p[380][477])
 
-def run_collection_PCD():
-    #mode = "debugging"
-    mode = "physical"
+def run_collection_PCD(config):
 
+    mode = config.mode
+    tableHeight = config.tableHeight
+    probeLength = config.probeLength
+    forceLimit = config.forceLimit
+    dt= config.dt
+    moveStep= config.moveStep
+    debug_path = config.exp_path
+    
     ##################################### Start here ################################
     ## Initialize things 
     world = WorldModel()
-    fn = "robo_model_data/ur5Blocks.xml" #correct UR5e model
+    fn = config.robot_model_path#correct UR5e model
     res = world.readFile(fn)
     robot = world.robot(0)
-    ee_link=7
+    ee_link=config.ee_link_number
     link=robot.link(ee_link)
 
     ## Load calibrated camera transforms
-    dataFile=open('calibrated_transforms/calibrated_camera_xform.txt','r')  ####### saved with  Klampt saver....... R is row major........
+    dataFile=open(config.calibration_xform_path,'r')  ####### saved with  Klampt saver....... R is row major........
     for line in dataFile:
         line=line.rstrip()
         l=[num for num in line.split(' ')]
@@ -106,14 +113,14 @@ def run_collection_PCD():
 
     # control interface
     if mode == "physical":
-        robotControlApi = UR5WithGripperController(host='10.10.1.106',gripper=False)
+        robotControlApi = UR5WithGripperController(host=config.robot_host,gripper=False)
         robotControlApi.start()
         time.sleep(3)
-        file = open("experiment_data/joint_positions.txt",'w')
+        file = open(config.exp_path+'exp_'+str(config.exp_number)+"/joint_positions.txt",'w')
         print '---------------------robot started -----------------------------'
 
     ## Record some home configuration
-    homeConfig2=[-1.08105692024,-0.866032360067,1.67516698749,0.762010738422,1.57201803046,2.84750462606 , 0]#controller format
+    homeConfig2=config.home_config2#controller format
     if mode == "physical":
         print "------ moving home ---------"
         constantVServo(robotControlApi,5.0,homeConfig2,0.002)
@@ -130,16 +137,18 @@ def run_collection_PCD():
     ## update current position
     robot.setConfig(controller_2_klampt(robot,homeConfig2))
     EETransform=link.getTransform()
+    
     if mode == "debugging":
         vis.add("world",world)
         #vis.add("ghost"+"_home",robot.getConfig())
     print '---------------------at home configuration -----------------------------'
     transformCameraInWorld=se3.mul(EETransform,transformCameraInEE)
+       
     ############## Take point cloud picture ################
     # Take pcd data at different orientations
 
     if mode == "physical":
-        save_pcd(dev,"experiment_data/objectScan_",0,transformCameraInWorld)
+        save_pcd(dev,config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_",0,transformCameraInWorld)
 
     objectCentroidLocal = [0.365,-0.098,0.0627]
     objectCentroidGlobal = se3.apply(EETransform,objectCentroidLocal)
@@ -163,17 +172,17 @@ def run_collection_PCD():
             elif mode == "physical":
                 robotControlApi.start()
                 time.sleep(1.0)
-                constantVServo(robotControlApi,5.0,klampt_2_controller(robot.getConfig()),0.002)
+                constantVServo(robotControlApi,5.0,klampt_2_controller(robot.getConfig()),0.004)
                 time.sleep(0.5)
                 robotControlApi.stop()
                 EETransform = link.getTransform()
                 transformCameraInWorld = se3.mul(EETransform,transformCameraInEE)
-                save_pcd(dev,"experiment_data/objectScan_",i+1,transformCameraInWorld)
+                save_pcd(dev,config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_",i+1,transformCameraInWorld)
                 time.sleep(0.1)
                 ## save the joint positions
-                config = klampt_2_controller(robot.getConfig())
+                config_robot = klampt_2_controller(robot.getConfig())
                 counter = 0
-                for ele in config:
+                for ele in config_robot:
                     if counter <= 4:
                         file.write(str(ele)+' ')
                     else:
@@ -186,8 +195,12 @@ def run_collection_PCD():
         dev.stop()
         serv.stop()
         file.close()
+    
     elif mode == "debugging":
         robot.setConfig(controller_2_klampt(robot,homeConfig2))
         vis.show()
+        print('[*] Debug: PCD collection done.')
         while vis.shown():
             time.sleep(1.0)
+           
+    print('[*] PCD collection done.')
