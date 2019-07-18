@@ -19,7 +19,10 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from copy import deepcopy
 
+# TODO: temp set here
 data_path = 'calibration_data/'
+num_pic = 18
+robot_host = '10.10.1.106'
 
 def constantVServo(controller,servoTime,target,dt):
     currentTime=0.0
@@ -81,19 +84,17 @@ def picture():
     except pyrs.RealsenseError:
         pass  # options are not available on all devices
 
-
     time.sleep(1)
-
     print '---------------------camera initiated -----------------------------'
 
-
-
     # control interface
-    robotControlApi = UR5WithGripperController(host='10.10.1.106',gripper=False)
-    robotControlApi.start()
-    time.sleep(2)
+    try:
+        robotControlApi = UR5WithGripperController(host=robot_host,gripper=False)
+        robotControlApi.start()
+        time.sleep(2)
+    except:
+        print('robot lose connection.')
     print '---------------------robot started -----------------------------'
-
 
     ##########################################################
     ## Record some home configuration
@@ -105,12 +106,9 @@ def picture():
 
     print '---------------------at home configuration -----------------------------'
 
-
-
     #EETransformFile=open('calibration_EE_transforms.txt',w)
 
-
-    for i in range(18):
+    for i in range(num_pic):
         constantVServo(robotControlApi,5.0,calibrationConfigs[i],0.004)
         time.sleep(0.5)
         ## update current position
@@ -132,11 +130,8 @@ def picture():
                 data.write(str(p[y][x][0])+' '+str(p[y][x][1])+' '+str(p[y][x][2])+'\n')
         data.close()
         time.sleep(0.5)
-        
 
         print i
-
-
 
     dev.stop()
     serv.stop()
