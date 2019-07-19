@@ -9,12 +9,21 @@ class DMConfig(object):
         self.calibration_xform_path = 'calibrated_transforms/calibrated_camera_xform.txt'
         self.merge_cmd = './utils/merge_cpp_ws/Merge_pcd'
         self.exp_path = './experiment_data/'
+        self.probe_type = 'point'
 
         # ----------- experiment params
         self.exp_number = 0 #this will reset in the main function.       
         
         self.tableHeight = 0.86
-        self.probeLength = 0.09
+        self.probeLength = 0.09 #TODO: may need to change name to probeLength_point
+        self.probeLength_Line = 0.09 #TODO: old usage.
+        self.probe_line_theta_bias = 0.0 # to the local z axis. old usage.
+
+        self.probe_transform = [[1,0,0,self.probeLength],
+                                [0,1,0,0],
+                                [0,0,1,0],
+                                [0,0,0,1]]
+                                
         self.forceLimit = 2 # F=2N, depends on object hardness
         self.dt=0.004
         self.moveStep=0.002*self.dt   #2mm /s
@@ -36,7 +45,7 @@ class DMConfig(object):
         self.IKErrorTolerence = 4  
         self.maxDev = 1.2
         self.EEZLimit = 0.956
-               
+        
     def list_all_member(self):
         params = {}
         for name,value in vars(self).items():
