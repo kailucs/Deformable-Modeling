@@ -109,11 +109,19 @@ def main():
         dest='step',
         type=str
     )
+    argparser.add_argument(
+        '--probe-type',
+        default='point',
+        dest='probe_type',
+        type=str
+    )
+
 
     args = argparser.parse_args()
 
     config = DMConfig(args.process)
-
+    config.probe_type = args.probe_type
+    
     # Check if the vector of GPUs passed are valid.
     for gpu in args.gpus:
         try:
