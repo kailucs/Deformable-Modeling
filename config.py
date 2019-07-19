@@ -1,36 +1,42 @@
 class DMConfig(object):
 
-    def __init__(self, FLAGS):
+    def __init__(self, MODE):
+        # ----------- global setting
+        self.mode = MODE
+        self.step = 'n'
+        self.robot_model_path = "robot_model_data/ur5Blocks.xml"
+        self.ee_link_number = 7
+        self.calibration_xform_path = 'calibrated_transforms/calibrated_camera_xform.txt'
+        self.merge_cmd = './utils/merge_cpp_ws/Merge_pcd'
+        self.exp_path = './experiment_data/'
 
-        self.batch_size = 16
-        # self.random_start = 30
-        self.cnn_format = 'NCHW'
-        self.discount = 0.6 # epsilon in RL (decay index)
-        self.target_q_update_step = 1 * self.scale
-        self.learning_rate = 0.001
-        self.learning_rate_minimum = 0.00025
-        self.learning_rate_decay = 0.96
-        self.learning_rate_decay_step = 4 * self.scale
-
-        self.ep_end = 0.20
-        self.ep_start = 1.
-        self.ep_end_t = 4. * self.memory_size # encourage some new actions
-
-        self.history_length = 4
-        self.train_frequency = 4
-        self.learn_start = 4. * self.scale
+        # ----------- experiment params
+        self.exp_number = 0 #this will reset in the main function.       
         
-        if FLAGS.use_gpu == False:
-            self.cnn_format = 'NHWC'
-        else:
-            self.cnn_format = 'NCHW'
+        self.tableHeight = 0.86
+        self.probeLength = 0.09
+        self.forceLimit = 2 # F=2N, depends on object hardness
+        self.dt=0.004
+        self.moveStep=0.002*self.dt   #2mm /s
 
-        if FLAGS.is_train == False:
-            self.is_train = False
+        self.robot_host = '10.10.1.106'
 
-        if FLAGS.is_sim == False:
-            self.is_sim = False
-            
+        self.num_pcd = 5
+        
+        self.drawFlag = False
+
+        self.home_config2 = [-1.08105692024,-0.866032360067,1.67516698749,
+                            0.762010738422,1.57201803046,2.84750462606 , 0]
+        
+        self.intermediateConfig = [-1.0812161604510706, -0.5610864919475098,1.6372855345355433, 
+                                    0.49511925756420894, 1.5732531547546387, 2.8483853340148926, 0]
+        
+        self.longServoTime = 3
+        self.shortServoTime = 1.5
+        self.IKErrorTolerence = 4  
+        self.maxDev = 1.2
+        self.EEZLimit = 0.956
+               
     def list_all_member(self):
         params = {}
         for name,value in vars(self).items():
