@@ -36,3 +36,5 @@ python main.py --process [process-name]
 ```
 process can be physical or simulation.
 
+### Version
+- 2019.07.19 add line probe mode, add transform from probe to EE.
