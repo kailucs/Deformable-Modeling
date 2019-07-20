@@ -65,6 +65,9 @@ def run_poking_point_probe(config):
 							[0,0,1,1]]) # means the point in probe coordinate.
 	point_probe_to_local = np.dot(probe_transform, point_probe.T)
 	point_probe_to_local = point_probe_to_local[0:3,:].T
+	point_probe_to_local = point_probe_to_local.tolist()
+	print("[*]Debug: probe coodinate transform to EE:")
+	print(point_probe_to_local)
 
 	## Initialize things 
 	world = WorldModel()
@@ -116,7 +119,7 @@ def run_poking_point_probe(config):
 		# TODO: this is not a little stupid...
 		point_list = input('There are %d poking point, input a list:'%len(points))
 		if point_list == len(points):
-			point_list == range(len(points))
+			point_list = range(len(points))
 		
 		for i in point_list:
 			print('point %d'%i)
@@ -210,7 +213,7 @@ def run_poking_point_probe(config):
 		######################################## Ready to Take Measurements ################################################
 		#TODO: arrange the point execute order
 		exe_number = input('There are %d poking point, input executing number:'%len(points))
-		point_list == random.sample(range(len(points)),exe_number)
+		point_list = random.sample(range(len(points)),exe_number)
 
 		for i in point_list:	
 			robotCurrentConfig=robotControlApi.getConfig()
@@ -410,7 +413,7 @@ def run_poking_line_probe(config):
 		# TODO: this is not a little stupid...
 		point_list = input('There are %d poking point, input a list:'%len(points))
 		if point_list == len(points):
-			point_list == range(len(points))
+			point_list = range(len(points))
 		
 		for i in point_list:
 			print('point %d'%i)
@@ -421,8 +424,9 @@ def run_poking_line_probe(config):
 
 			## random a theta list for each point
 			theta_list_num = input('theta list number: ')
-			theta_list = [math.pi*i/theta_list_num for i in range(theta_list_num)]
-
+			theta_list = [((math.pi/2)*i/theta_list_num - math.pi/4) for i in range(theta_list_num)]
+			#print(theta_list)
+			
 			for theta in theta_list:
 				## perform IK
 				localZUnitV=vectorops.unit(vectorops.cross([-math.sin(theta),math.cos(theta),0],approachVector)) # suppose is the right hand coordinate
@@ -437,7 +441,7 @@ def run_poking_line_probe(config):
 				if res:
 					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
 					EEZPos=link.getTransform()[1]
-					print 'difference', diff	
+					print('[*]IK: difference: %f, with theta: %f'%(diff,theta))	
 					differences.append(diff)
 
 					vis.add("ghost"+str(i),robot.getConfig())
@@ -447,10 +451,10 @@ def run_poking_line_probe(config):
 						pass
 					else:
 						print "IK too far away"
-						break
+						#break
 				else:
 					print "IK failture"
-					break
+					#break
 
 				### now start colecting data..
 				travel = 0.0
@@ -471,10 +475,10 @@ def run_poking_line_probe(config):
 							pass
 						else:
 							print "IK too far away"
-							break
+							#break
 					else:
 						print "IK failture"
-						break
+						#break
 					travel = travel + moveStep
 
 				### move the probe away
@@ -510,7 +514,7 @@ def run_poking_line_probe(config):
 		######################################## Ready to Take Measurements ################################################
 		#TODO: arrange the point execute order
 		exe_number = input('There are %d poking point, input executing number:'%len(points))
-		point_list == random.sample(range(len(points)),exe_number)
+		point_list = random.sample(range(len(points)),exe_number)
 		theta_bias = config.probe_line_theta_bias
 
 		for i in point_list:	
