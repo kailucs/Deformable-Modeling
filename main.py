@@ -68,7 +68,8 @@ def step_mode(config):
     if input('Process PCD?') == 1:
         run_collection_process_PCD(config)
     if input('Merge PCD?') == 1:
-        os.system('cp -rf '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/processed ')
+        os.system('rm -r '+config.exp_path+'tmp && mkdir '+config.exp_path+'tmp &&'
+                    'cp -rf '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/processed ')
                     +os.path.join(config.exp_path,'tmp/processed'))
         os.system(config.merge_cmd)
         os.system('cp -f '+os.path.join(config.exp_path,'tmp/TSDF_result.ply ')
