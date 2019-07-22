@@ -69,7 +69,7 @@ def run_calculation(config):
 
 	### remove duplicated points
 	pcdNoDuplication= voxel_down_sample(originalPcd, voxel_size = 0.0008)
-	print NofPtsOriginal-len(pcdNoDuplication.points)," of pts removed due to duplication"
+	#print NofPtsOriginal-len(pcdNoDuplication.points)," of pts removed due to duplication"
 
 
 	#### Do this in the future...
@@ -91,6 +91,8 @@ def run_calculation(config):
 	estimate_normals(originalPcd, search_param = KDTreeSearchParamHybrid(radius = 0.1, max_nn = 30)) # normals can actually point downwards......
 	if drawFlag:
 		draw_geometries([originalPcd])
+	
+	#TODO:
 	### ---------------------- remove table and points that are too "flat"
 	pcdSegmented = PointCloud()
 	xyz=[]
@@ -109,20 +111,57 @@ def run_calculation(config):
 				ptNormals.append(ptNormal)
 			else:
 				ptNormals.append(vectorops.mul(ptNormal,-1.0))
+	# remove the duplicates
+	print('[*]Befor duplicate rm: %d'%len(originalPcd.points))
+	tmp_xyz = np.array(xyz)
+	tmp_rgb = np.array(rgb)
+	tmp_normal = np.array(ptNormals)
 
-	pcdSegmented.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
-	pcdSegmented.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
-	pcdSegmented.normals = Vector3dVector(np.asarray(ptNormals,dtype=np.float32))
+	tmp_xyzrgbn = np.hstack((tmp_xyz,tmp_rgb,tmp_normal))
+	tmp_xyzrgbn = [tuple(row) for row in tmp_xyzrgbn]
+	set_xyzrgbn = list(set(tmp_xyzrgbn))
+	#set_xyzrgbn.sort()
+	#tmp_xyzrgbn = tmp_xyzrgbn.tolist()
+	#set_xyzrgbn = deleteDup(tmp_xyzrgbn)
+	#set_xyzrgbn = np.unique(tmp_xyzrgbn)
+	set_xyzrgbn = np.array(set_xyzrgbn)
+	xyz_array = set_xyzrgbn[:,0:3]
+	rgb_array = set_xyzrgbn[:,3:6]
+	normal_array = set_xyzrgbn[:,6:9]
 
+	pcdSegmented.points = Vector3dVector(xyz_array)
+	pcdSegmented.colors = Vector3dVector(rgb_array)	
+	pcdSegmented.normals = Vector3dVector(normal_array)
+	print('[*]After duplicate rm: %d'%len(pcdSegmented.points))
+	#removed the outliers
 	pcdSegmented,ind=statistical_outlier_removal(pcdSegmented,nb_neighbors=20,std_ratio=2.0)
 
 	print len(pcdSegmented.points)
 	draw_geometries([pcdSegmented])
-
+	
 	### ------------------------ Down sample the points for data collection --------
+	#TODO:
+
 	pcdSegmentedDown= voxel_down_sample(pcdSegmented, voxel_size = 0.01)
+	#pcdSegmentedDown= voxel_down_sample(pcdSegmented, voxel_size = 0.002)
+	print '[*]1: N of Segmented Pts: ',len(pcdSegmentedDown.points)
+	draw_geometries([pcdSegmentedDown])
+
+	tmp_xyzrgbn = np.hstack((np.array(pcdSegmentedDown.points),np.array(pcdSegmentedDown.colors),np.array(pcdSegmentedDown.normals)))
+	#set_xyzrgbn = [tuple(row) for row in tmp_xyzrgbn]
+	set_xyzrgbn = sorted(tmp_xyzrgbn, key=lambda x: (x[0], x[1]))
+	set_xyzrgbn = np.array(set_xyzrgbn)
+
+	pcdSegmentedDown_tmp = PointCloud()
+	pcdSegmentedDown_tmp.points = Vector3dVector(set_xyzrgbn[:,0:3])
+	pcdSegmentedDown_tmp.colors = Vector3dVector(set_xyzrgbn[:,3:6])	
+	pcdSegmentedDown_tmp.normals = Vector3dVector(set_xyzrgbn[:,6:9])
+
+	#pcdSegmentedDown = uniform_down_sample(pcdSegmentedDown_tmp,50)
+	pcdSegmentedDown = pcdSegmentedDown_tmp
 	#NofPoints=countPts(pcdSegmentedDown)
-	print 'N of Segmented Pts: ',len(pcdSegmentedDown.points)
+	print '[*]2: N of Segmented Pts: ',len(pcdSegmentedDown.points)
+	print(np.array(pcdSegmentedDown.points))
 	draw_geometries([pcdSegmentedDown])
 
 	################### Need to save this point cloud ##################
@@ -155,3 +194,18 @@ def run_calculation(config):
 	pcdData.close()
 	print('[*]Processing PCD Done.')
 
+'''
+def pcl_downsample(pcl,vozel_size):
+	pcl_down = PointCloud()
+	p_arr = np.array
+	pcdSegmented.points = Vector3dVector(xyz_array)
+	pcdSegmented.colors = Vector3dVector(rgb_array)	
+	pcdSegmented.normals = Vector3dVector(normal_array)
+'''
+
+def deleteDup(list1):
+	res = []
+	for item in list1:
+		if not item in res:
+			res.append(item)
+	return res
