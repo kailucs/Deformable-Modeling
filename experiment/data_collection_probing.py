@@ -7,39 +7,21 @@ from klampt.math import vectorops,so3,se3
 from klampt.io import loader
 from klampt.model import ik
 from klampt import vis
+from klampt.model import collide
 import math
 import random
 from robot_api.RobotController import UR5WithGripperController
 import matplotlib.pyplot as plt
 from scipy import signal
+from utils.collision_detecting import check_collision_single,check_collision_linear
 
-def controller_2_klampt(robot,controllerQ):
-    qOrig=robot.getConfig()
-    q=[v for v in qOrig]
-    for i in range(6):
-        q[i+1]=controllerQ[i]
-    return q
-
-def klampt_2_controller(robotQ):
-
-    temp=robotQ[1:7]
-    temp.append(0)
-    return temp
-
-def constantVServo(controller,servoTime,target,dt):
-    currentTime=0.0
-    goalConfig=deepcopy(target)
-    currentConfig=controller.getConfig()
-    difference=vectorops.sub(goalConfig,currentConfig)
-
-    while currentTime < servoTime:
-        setConfig=vectorops.madd(currentConfig,difference,currentTime/servoTime)
-        controller.setConfig(setConfig)
-        time.sleep(dt)
-        currentTime=currentTime+dt
-        #print currentTime
-
-    return 0
+def run_poking(config):
+	if config.probe_type == 'point':
+		run_poking_point_probe(config)
+	elif config.probe_type == 'line':
+		run_poking_line_probe(config)
+	else:
+		print('[!]Probe type no exist')
 
 def run_poking_point_probe(config):
 	"""
@@ -108,7 +90,6 @@ def run_poking_point_probe(config):
 		constantVServo(robotControlApi,4,homeConfig2,dt)#controller format
 
 	robot.setConfig(controller_2_klampt(robot,homeConfig2))
-	EETransform=link.getTransform()# TODO: no use?
 	print '---------------------at home configuration -----------------------------'
 
 	if CONTROLLER == 'debugging':
@@ -116,7 +97,7 @@ def run_poking_point_probe(config):
 		differences=[]
 		print('[*]Debug: Poking process start')
 		#for i in range(len(points)):
-		# TODO: this is not a little stupid...
+		#this is a little stupid...
 		point_list = input('There are %d poking point, input a list:'%len(points))
 		if point_list == len(points):
 			point_list = range(len(points))
@@ -137,6 +118,14 @@ def run_poking_point_probe(config):
 
 			goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
 			res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
+
+			# collide detect
+			collider = collide.WorldCollider(world)
+			if check_collision_linear(robot,collider,controller_2_klampt(robot,robotCurrentConfig),robot.getConfig(),10):
+				print "[!]collision!"
+			else:
+				print "No Collision."
+				
 			if res:
 				diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
 				EEZPos=link.getTransform()[1]
@@ -159,7 +148,7 @@ def run_poking_point_probe(config):
 			travel = 0.0
 			stepVector = vectorops.mul(approachVector,moveStep)
 			
-			while travel<0.0001: #TODO: just try 0.1mm?
+			while travel<0.0001: #just try 0.1mm?
 				robotCurrentConfig=klampt_2_controller(robot.getConfig())
 				pt1=vectorops.add(pt1,stepVector)
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
@@ -345,7 +334,7 @@ def run_poking_line_probe(config):
 	##################################### Start here ################################
 	## Constants and Measurements
 	tableHeight = config.tableHeight
-	probeLength = config.probeLength_Line
+	probeLength = config.probeLength
 	forceLimit = config.forceLimit
 	dt=config.dt  #250Hz
 	moveStep=0.002*dt   #2mm /s
@@ -362,6 +351,9 @@ def run_poking_line_probe(config):
 							[0,0,1,1]]) # means the point in probe coordinate.
 	point_probe_to_local = np.dot(probe_transform, point_probe.T)
 	point_probe_to_local = point_probe_to_local[0:3,:].T
+	point_probe_to_local = point_probe_to_local.tolist()
+	print("[*]Debug: probe coodinate transform to EE:")
+	print(point_probe_to_local)
 
 	## Initialize things 
 	world = WorldModel()
@@ -402,7 +394,6 @@ def run_poking_line_probe(config):
 		constantVServo(robotControlApi,4,homeConfig2,dt)#controller format
 
 	robot.setConfig(controller_2_klampt(robot,homeConfig2))
-	EETransform=link.getTransform()# TODO: no use?
 	print '---------------------at home configuration -----------------------------'
 
 	if CONTROLLER == 'debugging':
@@ -410,7 +401,7 @@ def run_poking_line_probe(config):
 		differences=[]
 		print('[*]Debug: Poking process start')
 		#for i in range(len(points)):
-		# TODO: this is not a little stupid...
+		# this is a little stupid...
 		point_list = input('There are %d poking point, input a list:'%len(points))
 		if point_list == len(points):
 			point_list = range(len(points))
@@ -435,7 +426,7 @@ def run_poking_line_probe(config):
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength)) # use 1m in normals direction.				
 				pt3=vectorops.add(pt1,localZUnitV)
 
-				goal=ik.objective(link,local=[[probeLength,0,0],[1,0,0],[probeLength,0,1]],world=[pt1,pt2,pt3])
+				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
 				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
 
 				if res:
@@ -460,13 +451,13 @@ def run_poking_line_probe(config):
 				travel = 0.0
 				stepVector = vectorops.mul(approachVector,moveStep)
 				
-				while travel<0.0001: #TODO: just try 0.1mm?
+				while travel<0.0001: #just try 0.1mm?
 					robotCurrentConfig=klampt_2_controller(robot.getConfig())
 					pt1=vectorops.add(pt1,stepVector)
 					pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 					pt3=vectorops.add(pt1,localZUnitV)
 
-					goal=ik.objective(link,local=[[probeLength,0,0],[1,0,0],[probeLength,0,1]],world=[pt1,pt2,pt3])
+					goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
 					res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
 					if res:
 						diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
@@ -487,7 +478,7 @@ def run_poking_line_probe(config):
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 				pt3=vectorops.add(pt1,localZUnitV)
 
-				goal=ik.objective(link,local=[[probeLength,0,0],[1,0,0],[probeLength,0,1]],world=[pt1,pt2,pt3])
+				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
 				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
 				if res:
 					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
@@ -531,7 +522,6 @@ def run_poking_line_probe(config):
 			for theta in theta_list:
 
 				localZUnitV=vectorops.unit(vectorops.cross([-math.sin(theta),math.cos(theta),0],approachVector)) # suppose is the right hand coordinate
-				#TODO: WARNING: is a unit vector?
 
 				#### Make sure no contact, backup 0.01m
 				pt1=vectorops.add(goalPosition,vectorops.mul(approachVector,-0.01))
@@ -645,8 +635,8 @@ def run_poking_line_probe(config):
 					forceData.write(str(f[0])+' '+str(f[1])+' '+str(f[2])+' '+str(fn)+' '+str(d)+'\n')
 				
 				torqueData=open(config.exp_path+'exp_'+str(config.exp_number)+'/torque_'+str(i)+'.txt','w')
-				for (t,tn,d) in zip(forceHistory,force_normalHistory,displacementHistory):
-					forceData.write(str(t[0])+' '+str(t[1])+' '+str(t[2])+' '+str(tn)+' '+str(d)+'\n')
+				for (t,tn,d) in zip(torqueHistory,torque_normalHistory,displacementHistory):
+					torqueData.write(str(t[0])+' '+str(t[1])+' '+str(t[2])+' '+str(tn)+' '+str(d)+'\n')
 
 				### move the probe away
 
@@ -656,7 +646,7 @@ def run_poking_line_probe(config):
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 				pt3=vectorops.add(pt1,localZUnitV)
 
-				goal=ik.objective(link,local=[[probeLength,0,0],[1,0,0],[probeLength,0,1]],world=[pt1,pt2,pt3])
+				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
 				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
 				if res:
 					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
@@ -678,13 +668,33 @@ def run_poking_line_probe(config):
 			
 		robotControlApi.stop()
 		
-def run_poking(config):
-	if config.probe_type == 'point':
-		run_poking_point_probe(config)
-	elif config.probe_type == 'line':
-		run_poking_line_probe(config)
-	else:
-		print('[!]Probe type no exist')
+def controller_2_klampt(robot,controllerQ):
+    qOrig=robot.getConfig()
+    q=[v for v in qOrig]
+    for i in range(6):
+        q[i+1]=controllerQ[i]
+    return q
+
+def klampt_2_controller(robotQ):
+
+    temp=robotQ[1:7]
+    temp.append(0)
+    return temp
+
+def constantVServo(controller,servoTime,target,dt):
+    currentTime=0.0
+    goalConfig=deepcopy(target)
+    currentConfig=controller.getConfig()
+    difference=vectorops.sub(goalConfig,currentConfig)
+
+    while currentTime < servoTime:
+        setConfig=vectorops.madd(currentConfig,difference,currentTime/servoTime)
+        controller.setConfig(setConfig)
+        time.sleep(dt)
+        currentTime=currentTime+dt
+        #print currentTime
+
+    return 0
 
 def fix_direction(Force):
 	Force[0] = -Force[0]
@@ -721,7 +731,6 @@ def drop_code():
 	#import logging
 	#logging.basicConfig(level=logging.INFO)
 
-	# TODO: no use
 	if CONTROLLER == 'simulation':
 		controllerWorld = world.copy()
 	
