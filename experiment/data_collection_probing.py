@@ -16,19 +16,10 @@ from scipy import signal
 from utils.collision_detecting import check_collision_single,check_collision_linear
 
 def run_poking(config):
-	if config.probe_type == 'point':
-		run_poking_point_probe(config)
-	elif config.probe_type == 'line':
-		run_poking_line_probe(config)
-	else:
-		print('[!]Probe type no exist')
-
-def run_poking_point_probe(config):
 	"""
-	this is the main function of poking object. - point probe
+	this is poking api entrance.
 	"""
-	##################################### Start here ################################
-	## Constants and Measurements
+	# init params
 	tableHeight = config.tableHeight
 	probeLength = config.probeLength
 	forceLimit = config.forceLimit
@@ -36,7 +27,7 @@ def run_poking_point_probe(config):
 	moveStep=0.002*dt   #2mm /s
 
 	shortServoTime=config.shortServoTime
-	longServoTime=config.longServoTime + 2 #TODO: set in config?
+	longServoTime=config.longServoTime
 	IKErrorTolerence=config.IKErrorTolerence
 	maxDev=config.maxDev
 	EEZLimit=config.EEZLimit
@@ -51,30 +42,37 @@ def run_poking_point_probe(config):
 	print("[*]Debug: probe coodinate transform to EE:")
 	print(point_probe_to_local)
 
-	## Initialize things 
+	# init robot 
 	world = WorldModel()
 	res = world.readFile(config.robot_model_path)
 	robot = world.robot(0)
 	ee_link=config.ee_link_number #UR5 model is 7.
 	link=robot.link(ee_link)
 	CONTROLLER = config.mode
-
+	collider = collide.WorldCollider(world)
 	print '---------------------model loaded -----------------------------' 
 
+	# visualization
+	vis.add("world",world)
+
+	# begin loop
+	if config.probe_type == 'point':
+		run_poking_point_probe(config,tableHeight,probeLength,forceLimit,dt,moveStep,shortServoTime,longServoTime,
+								IKErrorTolerence,maxDev,EEZLimit,probe_transform,point_probe_to_local,world,res,robot,link,CONTROLLER,collider)
+	elif config.probe_type == 'line':
+		run_poking_line_probe(config,tableHeight,probeLength,forceLimit,dt,moveStep,shortServoTime,longServoTime,
+								IKErrorTolerence,maxDev,EEZLimit,probe_transform,point_probe_to_local,world,res,robot,link,CONTROLLER,collider)
+	else:
+		print('[!]Probe type no exist')
+
+def run_poking_point_probe(config,tableHeight,probeLength,forceLimit,dt,moveStep,shortServoTime,longServoTime,
+								IKErrorTolerence,maxDev,EEZLimit,probe_transform,point_probe_to_local,world,res,robot,link,CONTROLLER,collider):
+	"""
+	this is the main function of poking object. - point probe
+	"""
 	########################## Read In the pcd ######################################
-	points=[]
-	normals=[]
-	dataFile=open(config.exp_path+'exp_'+str(config.exp_number)+'/probePcd.txt','r')
-	for line in dataFile:
-		line=line.rstrip()
-		l=[num for num in line.split(' ')]
-		l2=[float(num) for num in l]
-		points.append(l2[0:3])
-		normals.append(l2[6:9])
-	dataFile.close()
-
-	print '---------------------pcd loaded -----------------------------' 
-
+	points, normals = load_pcd(config.exp_path+'exp_'+str(config.exp_number)+'/probePcd.txt')
+	
 	# control interface
 	if CONTROLLER == 'physical':
 		robotControlApi = UR5WithGripperController(host=config.robot_host,gripper=False)
@@ -93,101 +91,45 @@ def run_poking_point_probe(config):
 	print '---------------------at home configuration -----------------------------'
 
 	if CONTROLLER == 'debugging':
-		vis.add("world",world)
 		differences=[]
-		print('[*]Debug: Poking process start')
-		#for i in range(len(points)):
-		#this is a little stupid...
-		point_list = input('There are %d poking point, input a list:'%len(points))
-		if point_list == len(points):
-			point_list = range(len(points))
-		
-		for i in point_list:
-			print('point %d'%i)
-			print points[i],normals[i]
-			robotCurrentConfig=homeConfig2
+		print('[*]Debug: Poking process start!')
+
+		for i in range(len(points)):
+			print('point %d, pos: %s, normals: %s'%(i,points[i],normals[i]))
+
+			#robotCurrentConfig=homeConfig2 # TODO: compare to the intermediateConfig, I comment it 
 			goalPosition=deepcopy(points[i])
 			approachVector=vectorops.unit(vectorops.mul(normals[i],-1.0)) #get unit vector in the direction '- normals'
 
 			## perform IK
-			localZUnitV=vectorops.unit(vectorops.cross([0,1,0],approachVector))
-			
+			localZUnitV=vectorops.unit(vectorops.cross([0,1,0],approachVector))			
 			pt1=goalPosition
 			pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength)) # use 1m in normals direction.			
 			pt3=vectorops.add(pt1,localZUnitV)
 
-			goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-			res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-
-			# collide detect
-			collider = collide.WorldCollider(world)
-			if check_collision_linear(robot,collider,controller_2_klampt(robot,robotCurrentConfig),robot.getConfig(),10):
-				print "[!]collision!"
-			else:
-				print "No Collision."
-				
-			if res:
-				diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-				EEZPos=link.getTransform()[1]
-				print 'difference', diff	
-				differences.append(diff)
-
-				vis.add("ghost"+str(i),robot.getConfig())
-				vis.setColor("ghost"+str(i),0,1,0,0.5)	
-
-				if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-					pass
-				else:
-					print "IK too far away"
-					break
-			else:
-				print "IK failture"
-				break
+			[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],maxDev,
+											IKErrorTolerence,EEZLimit,collider,use_collision_detect=True)
+			differences.append(difference)
+			print('difference: %f'%difference)
 
 			### now start colecting data..
 			travel = 0.0
 			stepVector = vectorops.mul(approachVector,moveStep)
 			
 			while travel<0.0001: #just try 0.1mm?
-				robotCurrentConfig=klampt_2_controller(robot.getConfig())
 				pt1=vectorops.add(pt1,stepVector)
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 				pt3=vectorops.add(pt1,localZUnitV)
-
-				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-				if res:
-					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-					EEZPos=link.getTransform()[1]
-					if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-						pass
-					else:
-						print "IK too far away"
-						break
-				else:
-					print "IK failture"
-					break
+				[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],maxDev,
+												IKErrorTolerence,EEZLimit,collider,use_const=False)
 				travel = travel + moveStep
-
-			### move the probe away
-			robotCurrentConfig=klampt_2_controller(robot.getConfig())
+				
+			### move the probe away, note: a bit different to physical mode
 			pt1=vectorops.add(points[i],vectorops.mul(approachVector,-0.05))  ## move the probe 5 cm from the object surface
 			pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 			pt3=vectorops.add(pt1,localZUnitV)
-
-			goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-			res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-			if res:
-				diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-				EEZPos=link.getTransform()[1]
-				if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-					pass
-				else:
-					print "IK too far away"
-					break
-			else:
-				print "IK failture"
-				break
+			[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],maxDev,
+											IKErrorTolerence,EEZLimit,collider)
 
 			### move back to intermediate config
 			robot.setConfig(controller_2_klampt(robot,intermediateConfig))
@@ -200,11 +142,11 @@ def run_poking_point_probe(config):
 
 	elif CONTROLLER == 'physical':
 		######################################## Ready to Take Measurements ################################################
-		#TODO: arrange the point execute order
 		exe_number = input('There are %d poking point, input executing number:'%len(points))
-		point_list = random.sample(range(len(points)),exe_number)
+		point_list = [int(len(points)*index/exe_number) for index in range(exe_number)]
 
 		for i in point_list:	
+			print('point %d, pos: %s, normals: %s'%(i,points[i],normals[i]))	
 			robotCurrentConfig=robotControlApi.getConfig()
 			robot.setConfig(controller_2_klampt(robot,robotCurrentConfig))
 			#calculate start position
@@ -217,24 +159,12 @@ def run_poking_point_probe(config):
 			pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))			
 			pt3=vectorops.add(pt1,localZUnitV)
 
-			goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-			res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-			if res:
-				diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-				EEZPos=link.getTransform()[1]
-				if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-					constantVServo(robotControlApi,longServoTime,klampt_2_controller(robot.getConfig()),dt)
-				else:
-					print "IK too far away"
-					break
-			else:
-				print "IK failture"
-				break
+			[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+											maxDev,IKErrorTolerence,EEZLimit,collider,robotControlApi,longServoTime,dt)
 
 			time.sleep(0.2)
 
 			## Zero the sensor before straight line push
-			#
 			#
 			# Note that the force is recorded in the global frame..
 			# And the global frame has x and y axis flipped w.r.t the URDF....
@@ -251,8 +181,7 @@ def run_poking_point_probe(config):
 			### now start collecting data..
 			# Force direction x, y inverse, refer to correct force.py
 			wrench = robotControlApi.getWrench()
-			Force = vectorops.sub(wrench[0:3],forceBias)
-			Force = fix_direction(Force)
+			Force = fix_direction(vectorops.sub(wrench[0:3],forceBias))
 			Force_normal = math.fabs(vectorops.dot(Force,approachVector)) #|F||n|cos(theta) = F dot n, set it >= 0 
 			travel = -0.01
 			
@@ -267,24 +196,11 @@ def run_poking_point_probe(config):
 				pt1=vectorops.add(pt1,stepVector)
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 				pt3=vectorops.add(pt1,localZUnitV)
-
-				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-				if res:
-					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-					EEZPos=link.getTransform()[1]
-					if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-						robotControlApi.setConfig(klampt_2_controller(robot.getConfig()))
-					else:
-						print "IK too far away"
-						break
-				else:
-					print "IK failture"
-					break
+				[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+												maxDev,IKErrorTolerence,EEZLimit,collider,robotControlApi,longServoTime,dt,use_const=False)
 				time.sleep(dt)
 
-				Force = vectorops.sub(robotControlApi.getWrench()[0:3],forceBias)
-				Force = fix_direction(Force)
+				Force = fix_direction(vectorops.sub(robotControlApi.getWrench()[0:3],forceBias))
 				Force_normal = math.fabs(vectorops.dot(Force,approachVector))
 				travel = travel + moveStep
 
@@ -297,87 +213,36 @@ def run_poking_point_probe(config):
 			forceData=open(config.exp_path+'exp_'+str(config.exp_number)+'/force_'+str(i)+'.txt','w')
 			for (f,fn,d) in zip(forceHistory,force_normalHistory,displacementHistory):
 				forceData.write(str(f[0])+' '+str(f[1])+' '+str(f[2])+' '+str(fn)+' '+str(d)+'\n')
+			forceData.close()
 
 			### move the probe away
-
 			robotCurrentConfig=robotControlApi.getConfig()
 			robot.setConfig(controller_2_klampt(robot,robotCurrentConfig))
-			pt1=vectorops.add(points[i],vectorops.mul(approachVector,-0.05))  ## move the probe 5 cm from the object surface
+			pt1=vectorops.add(points[i],vectorops.mul(approachVector,-0.08))  ## move the probe 8 cm from the object surface
 			pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 			pt3=vectorops.add(pt1,localZUnitV)
-
-			goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-			res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-			if res:
-				diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-				EEZPos=link.getTransform()[1]
-				if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-					constantVServo(robotControlApi,shortServoTime,klampt_2_controller(robot.getConfig()),dt)
-				else:
-					print "IK too far away"
-					break
-			else:
-				print "IK failture"
-				break
-			forceData.close()
+			[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+											maxDev,IKErrorTolerence,EEZLimit,collider,robotControlApi,shortServoTime,dt)
 			
-			#### move back to intermediate config
-			constantVServo(robotControlApi,shortServoTime,intermediateConfig,dt)	
+			pt1=vectorops.add(pt1,[0,0,0.10])  ## move the probe 10 cm up-z-axis
+			pt2=vectorops.add(pt2,[0,0,0.10])
+			pt3=vectorops.add(pt3,[0,0,0.10])
+			[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+											maxDev,IKErrorTolerence,EEZLimit,collider,robotControlApi,shortServoTime,dt)			
+				
 			print'----------------------- pt '+str(i)+' completed -------------------------------'
-			
+		
+		#### move back to intermediate config
+		constantVServo(robotControlApi,shortServoTime,intermediateConfig,dt)	
 		robotControlApi.stop()
 
-def run_poking_line_probe(config):
+def run_poking_line_probe(config,tableHeight,probeLength,forceLimit,dt,moveStep,shortServoTime,longServoTime,
+							IKErrorTolerence,maxDev,EEZLimit,probe_transform,point_probe_to_local,world,res,robot,link,CONTROLLER,collider):
 	"""
-	this is the main function of poking object. line probe
+	this is the main function of poking object. - line probe
 	"""
-	##################################### Start here ################################
-	## Constants and Measurements
-	tableHeight = config.tableHeight
-	probeLength = config.probeLength
-	forceLimit = config.forceLimit
-	dt=config.dt  #250Hz
-	moveStep=0.002*dt   #2mm /s
-
-	shortServoTime=config.shortServoTime
-	longServoTime=config.longServoTime + 2 #TODO: set in config?
-	IKErrorTolerence=config.IKErrorTolerence
-	maxDev=config.maxDev
-	EEZLimit=config.EEZLimit
-
-	probe_transform = config.probe_transform
-	point_probe = np.array([[0,0,0,1],
-							[1-probeLength,0,0,1],
-							[0,0,1,1]]) # means the point in probe coordinate.
-	point_probe_to_local = np.dot(probe_transform, point_probe.T)
-	point_probe_to_local = point_probe_to_local[0:3,:].T
-	point_probe_to_local = point_probe_to_local.tolist()
-	print("[*]Debug: probe coodinate transform to EE:")
-	print(point_probe_to_local)
-
-	## Initialize things 
-	world = WorldModel()
-	res = world.readFile(config.robot_model_path)
-	robot = world.robot(0)
-	ee_link=config.ee_link_number #UR5 model is 7.
-	link=robot.link(ee_link)
-	CONTROLLER = config.mode
-
-	print '---------------------model loaded -----------------------------' 
-
 	########################## Read In the pcd ######################################
-	points=[]
-	normals=[]
-	dataFile=open(config.exp_path+'exp_'+str(config.exp_number)+'/probePcd.txt','r')
-	for line in dataFile:
-		line=line.rstrip()
-		l=[num for num in line.split(' ')]
-		l2=[float(num) for num in l]
-		points.append(l2[0:3])
-		normals.append(l2[6:9])
-	dataFile.close()
-
-	print '---------------------pcd loaded -----------------------------' 
+	points, normals = load_pcd(config.exp_path+'exp_'+str(config.exp_number)+'/probePcd.txt')
 
 	# control interface
 	if CONTROLLER == 'physical':
@@ -397,27 +262,17 @@ def run_poking_line_probe(config):
 	print '---------------------at home configuration -----------------------------'
 
 	if CONTROLLER == 'debugging':
-		vis.add("world",world)
 		differences=[]
 		print('[*]Debug: Poking process start')
-		#for i in range(len(points)):
-		# this is a little stupid...
-		point_list = input('There are %d poking point, input a list:'%len(points))
-		if point_list == len(points):
-			point_list = range(len(points))
-		
-		for i in point_list:
-			print('point %d'%i)
-			print points[i],normals[i]
+		theta_list_num = input('theta list number: ')
+		for i in range(len(points)):
+			print('point %d, pos: %s, normals: %s'%(i,points[i],normals[i]))
 			robotCurrentConfig=homeConfig2
 			goalPosition=deepcopy(points[i])
 			approachVector=vectorops.unit(vectorops.mul(normals[i],-1.0)) #get unit vector in the direction '- normals'
+			# random a theta list for each point
+			theta_list = [((math.pi/2)*angle/theta_list_num - math.pi/4) for angle in range(theta_list_num)]
 
-			## random a theta list for each point
-			theta_list_num = input('theta list number: ')
-			theta_list = [((math.pi/2)*i/theta_list_num - math.pi/4) for i in range(theta_list_num)]
-			#print(theta_list)
-			
 			for theta in theta_list:
 				## perform IK
 				localZUnitV=vectorops.unit(vectorops.cross([-math.sin(theta),math.cos(theta),0],approachVector)) # suppose is the right hand coordinate
@@ -426,71 +281,33 @@ def run_poking_line_probe(config):
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength)) # use 1m in normals direction.				
 				pt3=vectorops.add(pt1,localZUnitV)
 
-				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-
-				if res:
-					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-					EEZPos=link.getTransform()[1]
-					print('[*]IK: difference: %f, with theta: %f'%(diff,theta))	
-					differences.append(diff)
-
-					vis.add("ghost"+str(i),robot.getConfig())
-					vis.setColor("ghost"+str(i),0,1,0,0.5)	
-
-					if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-						pass
-					else:
-						print "IK too far away"
-						#break
-				else:
-					print "IK failture"
-					#break
+				[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+												maxDev,IKErrorTolerence,EEZLimit,collider,use_collision_detect=False)
+				differences.append(difference)
+				print('difference: %f'%difference)
 
 				### now start colecting data..
 				travel = 0.0
 				stepVector = vectorops.mul(approachVector,moveStep)
 				
-				while travel<0.0001: #just try 0.1mm?
+				while travel<0.0001:
 					robotCurrentConfig=klampt_2_controller(robot.getConfig())
 					pt1=vectorops.add(pt1,stepVector)
 					pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 					pt3=vectorops.add(pt1,localZUnitV)
 
-					goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-					res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-					if res:
-						diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-						EEZPos=link.getTransform()[1]
-						if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-							pass
-						else:
-							print "IK too far away"
-							#break
-					else:
-						print "IK failture"
-						#break
+					[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+													maxDev,IKErrorTolerence,EEZLimit,collider)
 					travel = travel + moveStep
 
-				### move the probe away
+				### move the probe away, note: a bit different to physical mode
 				robotCurrentConfig=klampt_2_controller(robot.getConfig())
 				pt1=vectorops.add(points[i],vectorops.mul(approachVector,-0.05))  ## move the probe 5 cm from the object surface
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 				pt3=vectorops.add(pt1,localZUnitV)
 
-				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-				if res:
-					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-					EEZPos=link.getTransform()[1]
-					if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-						pass
-					else:
-						print "IK too far away"
-						break
-				else:
-					print "IK failture"
-					break
+				[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+												maxDev,IKErrorTolerence,EEZLimit,collider)
 
 				### move back to intermediate config
 				robot.setConfig(controller_2_klampt(robot,intermediateConfig))
@@ -503,12 +320,12 @@ def run_poking_line_probe(config):
 
 	elif CONTROLLER == 'physical':
 		######################################## Ready to Take Measurements ################################################
-		#TODO: arrange the point execute order
 		exe_number = input('There are %d poking point, input executing number:'%len(points))
-		point_list = random.sample(range(len(points)),exe_number)
-		theta_bias = config.probe_line_theta_bias
+		point_list = [int(len(points)*index/exe_number) for index in range(exe_number)]
 
-		for i in point_list:	
+		for i in point_list:
+			print('point %d, pos: %s, normals: %s'%(i,points[i],normals[i]))
+
 			robotCurrentConfig=robotControlApi.getConfig()
 			robot.setConfig(controller_2_klampt(robot,robotCurrentConfig))
 			## calculate start position
@@ -517,35 +334,22 @@ def run_poking_line_probe(config):
 
 			## random a theta list for each point, theta means the angle of local z axis -> global x-y surface. 
 			theta_list_num = input('theta list number: ')
-			theta_list = [math.pi*i/theta_list_num for i in range(theta_list_num)]
+			theta_list = [ (math.pi*angle/theta_list_num - math.pi*(2.0/4.0)) for angle in range(theta_list_num)]
+
+			# init record file
+			forceData=open(config.exp_path+'exp_'+str(config.exp_number)+'/force_'+str(i)+'.txt','w')
+			torqueData=open(config.exp_path+'exp_'+str(config.exp_number)+'/torque_'+str(i)+'.txt','w')
 
 			for theta in theta_list:
-
+				print('point %d, pos: %s, normals: %s, theta: %f'%(i,points[i],normals[i],theta))
 				localZUnitV=vectorops.unit(vectorops.cross([-math.sin(theta),math.cos(theta),0],approachVector)) # suppose is the right hand coordinate
 
 				#### Make sure no contact, backup 0.01m
 				pt1=vectorops.add(goalPosition,vectorops.mul(approachVector,-0.01))
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength)) # use 1m in normals direction.				
 				pt3=vectorops.add(pt1,localZUnitV)
-
-				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-
-				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-
-				if res:
-					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-					EEZPos=link.getTransform()[1]
-					if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-						constantVServo(robotControlApi,longServoTime,klampt_2_controller(robot.getConfig()),dt)
-					else:
-						print "IK too far away"
-						break
-				else:
-					print "IK failture"
-					break
-
+				[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+											maxDev,IKErrorTolerence,EEZLimit,collider,robotControlApi,longServoTime,dt)
 				time.sleep(0.2)
 
 				## Zero the sensor before straight line push
@@ -574,10 +378,6 @@ def run_poking_line_probe(config):
 				Torque = vectorops.sub(wrench[3:6],torqueBias)
 				Torque = fix_direction(Torque)
 				Force_normal = math.fabs(vectorops.dot(Force,approachVector)) #|F||n|cos(theta) = F dot n, set it >= 0 
-				
-				#theta_probe = theta-theta_bias
-				#localZUnitV_fix=vectorops.cross([-math.sin(theta_probe),math.cos(theta_probe),0],approachVector)
-				## TODO: no need, if debug ok, then delete!
 				Torque_normal = vectorops.dot(Torque,localZUnitV)
 
 				travel = -0.01
@@ -597,19 +397,8 @@ def run_poking_line_probe(config):
 					pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 					pt3=vectorops.add(pt1,localZUnitV)
 
-					goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-					res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-					if res:
-						diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-						EEZPos=link.getTransform()[1]
-						if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-							robotControlApi.setConfig(klampt_2_controller(robot.getConfig()))
-						else:
-							print "IK too far away"
-							break
-					else:
-						print "IK failture"
-						break
+					[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+											maxDev,IKErrorTolerence,EEZLimit,collider,robotControlApi,longServoTime,dt,False)
 					time.sleep(dt)
 
 					Force = vectorops.sub(robotControlApi.getWrench()[0:3],forceBias)
@@ -629,43 +418,38 @@ def run_poking_line_probe(config):
 					displacementHistory.append(travel)
 				
 				#record all the data in 2 files, one N*2 containts all the force data collected at various locations, another
-				#file specifies the number of datapoints at each detected point
-				forceData=open(config.exp_path+'exp_'+str(config.exp_number)+'/force_'+str(i)+'.txt','w')
+				#file specifies the number of datapoints at each detected point				
 				for (f,fn,d) in zip(forceHistory,force_normalHistory,displacementHistory):
-					forceData.write(str(f[0])+' '+str(f[1])+' '+str(f[2])+' '+str(fn)+' '+str(d)+'\n')
+					forceData.write(str(f[0])+' '+str(f[1])+' '+str(f[2])+' '+str(fn)+' '+str(d)+' '+str(theta)+'\n')
 				
-				torqueData=open(config.exp_path+'exp_'+str(config.exp_number)+'/torque_'+str(i)+'.txt','w')
 				for (t,tn,d) in zip(torqueHistory,torque_normalHistory,displacementHistory):
-					torqueData.write(str(t[0])+' '+str(t[1])+' '+str(t[2])+' '+str(tn)+' '+str(d)+'\n')
+					torqueData.write(str(t[0])+' '+str(t[1])+' '+str(t[2])+' '+str(tn)+' '+str(d)+' '+str(theta)+'\n')
 
 				### move the probe away
-
 				robotCurrentConfig=robotControlApi.getConfig()
 				robot.setConfig(controller_2_klampt(robot,robotCurrentConfig))
-				pt1=vectorops.add(points[i],vectorops.mul(approachVector,-0.05))  ## move the probe 5 cm from the object surface
+				pt1=vectorops.add(points[i],vectorops.mul(approachVector,-0.08))  ## move the probe 5 cm from the object surface
 				pt2=vectorops.add(pt1,vectorops.mul(approachVector,1.0-probeLength))
 				pt3=vectorops.add(pt1,localZUnitV)
-
-				goal=ik.objective(link,local=point_probe_to_local,world=[pt1,pt2,pt3])
-				res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
-				if res:
-					diff=vectorops.norm_L1(vectorops.sub(robotCurrentConfig,klampt_2_controller(robot.getConfig())))
-					EEZPos=link.getTransform()[1]
-					if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
-						constantVServo(robotControlApi,shortServoTime,klampt_2_controller(robot.getConfig()),dt)
-					else:
-						print "IK too far away"
-						break
-				else:
-					print "IK failture"
-					break
-				forceData.close()
-				torqueData.close()
-
-				#### move back to intermediate config
-				constantVServo(robotControlApi,shortServoTime,intermediateConfig,dt)	
-				print'----------------------- pt '+str(i)+' completed -------------------------------'
+				[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+											maxDev,IKErrorTolerence,EEZLimit,collider,robotControlApi,shortServoTime,dt)
+				
+			pt1=vectorops.add(pt1,[0,0,0.10])  ## move the probe 10 cm up-z-axis
+			pt2=vectorops.add(pt2,[0,0,0.10])
+			pt3=vectorops.add(pt3,[0,0,0.10])
+			[robot,difference] = robot_move(CONTROLLER,world,robot,link,point_probe_to_local,[pt1,pt2,pt3],
+											maxDev,IKErrorTolerence,EEZLimit,collider,robotControlApi,shortServoTime,dt)
+				
+			print'----------------------- pt '+str(i)+' completed -------------------------------'
 			
+			# close record file for point i
+			forceData.close()
+			torqueData.close()
+
+			#### move back to intermediate config
+			constantVServo(robotControlApi,shortServoTime,intermediateConfig,dt)
+
+		# finish all points
 		robotControlApi.stop()
 		
 def controller_2_klampt(robot,controllerQ):
@@ -701,6 +485,66 @@ def fix_direction(Force):
 	Force[1] = -Force[1]
 	return Force
 
+def robot_move(mode,world,robot,link,point_ee,point_world,maxDev,IKErrorTolerence,
+				EEZLimit,collider,robotControlApi=None,ServoTime=9999.0,dt=1.0,use_const = True,vis=vis,use_collision_detect = False):
+
+	use_ik_detect = True
+	robotCurrentConfig=klampt_2_controller(robot.getConfig())
+	goal=ik.objective(link,local=point_ee,world=point_world)
+	res=ik.solve_nearby(goal,maxDeviation=maxDev,tol=0.00001)
+
+	if res:
+		# collision detect
+		if check_collision_linear(robot,collider,controller_2_klampt(robot,robotCurrentConfig),robot.getConfig(),10):
+			print "[!]Warning: collision detected!"
+			if use_collision_detect == True:
+				vis.show()
+				if input('continue?') != 1:
+					exit()
+		else:
+			pass
+
+		# cal difference
+		
+		diff=np.max(np.absolute((np.array(vectorops.sub(robotCurrentConfig[0:5],klampt_2_controller(robot.getConfig())[0:5])))))
+		EEZPos=link.getTransform()[1]
+		if diff<IKErrorTolerence and EEZPos>EEZLimit:  #126 degrees
+			if mode == 'debugging':
+				pass
+			elif mode == 'physical':
+				if use_const:
+					constantVServo(robotControlApi,ServoTime,klampt_2_controller(robot.getConfig()),dt)
+				else:
+					robotControlApi.setConfig(klampt_2_controller(robot.getConfig()))
+		else:
+			print "[!]IK too far away"
+			if use_ik_detect == True:
+				if input('continue?') != 1:
+					exit()
+	else:
+		diff = 9999.0
+		print "[!]IK failture"
+		if use_ik_detect == True:
+			vis.show()
+			if input('continue?') != 1:
+				exit()
+
+	return robot, diff
+
+def load_pcd(path):
+	points=[]
+	normals=[]
+	dataFile=open(path,'r')
+	for line in dataFile:
+		line=line.rstrip()
+		l=[num for num in line.split(' ')]
+		l2=[float(num) for num in l]
+		points.append(l2[0:3])
+		normals.append(l2[6:9])
+	dataFile.close()
+	print '---------------------pcd loaded -----------------------------'
+	return points, normals
+
 def drop_code():
 	"""
 	drop code
@@ -735,5 +579,3 @@ def drop_code():
 		controllerWorld = world.copy()
 	
 	"""
-
-
