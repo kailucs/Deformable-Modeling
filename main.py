@@ -11,6 +11,8 @@ from utils.data_collection_process_pcd_with_curvature import run_calculation
 
 from experiment.data_collection_probing import run_poking
 
+# TODO: Focus on step mode, so run all need to update code someday.
+
 def run_all(config):
     """
     this is core function of modeling and poking.
@@ -39,9 +41,10 @@ def physical_mode(config):
         os.mkdir(config.exp_path)
 
     config.exp_number = len(os.listdir(config.exp_path))
-
-    os.mkdir(os.path.join(config.exp_path,'exp_'+str(config.exp_number)))
-    print('[*] Experiment '+str(config.exp_number)+' created')
+    
+    if config.use_mkdir_exp == True:
+        os.mkdir(os.path.join(config.exp_path,'exp_'+str(config.exp_number)))
+        print('[*] Experiment '+str(config.exp_number)+' created')
 
     run_all(config)
 
@@ -61,24 +64,28 @@ def step_mode(config):
     this is to process step by step
     """
     print('[*]Step mode start')
-    print('%d experiments exist'%len(os.listdir(config.exp_path)))
-    config.exp_number = input('experiment number?')
-    if input('Collection PCD?') == 1: #TODO: if string, python2 need raw_input
-        run_collection_PCD(config)
-    if input('Process PCD?') == 1:
-        run_collection_process_PCD(config)
-    if input('Merge PCD?') == 1:
-        os.system('rm -r '+config.exp_path+'tmp && mkdir '+config.exp_path+'tmp &&'
-                    'cp -rf '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/processed ')
-                    +os.path.join(config.exp_path,'tmp/processed'))
-        os.system(config.merge_cmd)
-        os.system('cp -f '+os.path.join(config.exp_path,'tmp/TSDF_result.ply ')
-                    +os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/TSDF_result.ply'))
-    if input('Convert to ply?') == 1:
-        run_convert_ply(config)
-        run_calculation(config)
-    if input('Poking?') == 1:
+    config.exp_number = input('---%d experiments exist, experiment number?'%len(os.listdir(config.exp_path)))
+    if input('[*]PCD Processing?') != 1:
+        print('---Done')
+    else:
+        if input('[*]Collection PCD?') == 1: #TODO: if string, python2 need raw_input
+            run_collection_PCD(config)
+        if input('[*]Process PCD?') == 1:
+            run_collection_process_PCD(config)
+        if input('[*]Merge PCD?') == 1:
+            os.system('rm -r '+os.path.join(config.exp_path,'tmp'))
+            os.system('mkdir '+os.path.join(config.exp_path,'tmp'))
+            os.system('cp -rf '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/processed ')
+                        +os.path.join(config.exp_path,'tmp/processed'))
+            os.system(config.merge_cmd)
+            os.system('cp -f '+os.path.join(config.exp_path,'tmp/TSDF_result.ply ')
+                        +os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/TSDF_result.ply'))
+        if input('[*]Convert to ply?') == 1:
+            run_convert_ply(config)
+            run_calculation(config)
+    if input('[*]Poking?') == 1:
         run_poking(config)
+        print('---Done')
 
 def main():
     """
@@ -117,7 +124,6 @@ def main():
         type=str
     )
 
-
     args = argparser.parse_args()
 
     config = DMConfig(args.process)
@@ -137,6 +143,15 @@ def main():
             calibration_testing.calibration()
 
         elif args.step == 'y':
+            if args.process == 'physical':
+                if not os.path.exists(config.exp_path):
+                    os.mkdir(config.exp_path)
+                config.exp_number = len(os.listdir(config.exp_path))
+                
+                if config.use_mkdir_exp == True:
+                    os.mkdir(os.path.join(config.exp_path,'exp_'+str(config.exp_number)))
+                    print('[*] Experiment '+str(config.exp_number)+' created')
+            
             step_mode(config)
 
         elif args.step == 'n':
