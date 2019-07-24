@@ -39,3 +39,4 @@ process can be physical or simulation.
 ### Version
 - 2019.07.19 add line probe mode, add transform from probe to EE.
 - 2019.07.21 add duplicates removing, collision detection, and fix point cloud order.
+- 2019.07.23 change line poking process: first reconstruct a probe list then poke. fix some vis bugs.
