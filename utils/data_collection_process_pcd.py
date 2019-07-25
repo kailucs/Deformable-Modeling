@@ -54,12 +54,18 @@ def run_collection_process_PCD(config):
 		II = i
 		####### Process Pcd data ###############
 		#originalPcd = read_point_cloud("calibration_data/objectScan_phantom.xyzrgb",format='xyzrgb')
-		originalPcd = read_point_cloud(config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_"+str(II)+".xyzrgb",format='xyzrgb')
+		#originalPcd = read_point_cloud(config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_"+str(II)+".xyzrgb",format='xyzrgb')
+		#TODO:
+		originalPcd = PointCloud()
+		originalPcd_array = np.load(config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_"+str(II)+"_new.npy")
+		originalPcd.points = Vector3dVector(originalPcd_array[:,:3])
+		originalPcd.colors = Vector3dVector(originalPcd_array[:,3:])
+
 		draw_geometries([originalPcd])
 
 		### remove outlier
 		originalPcd,ind=statistical_outlier_removal(originalPcd,nb_neighbors=20,std_ratio=0.1)
-		#originalPcd,ind=radius_outlier_removal(originalPcd,nb_points=5,radius=0.05)
+		#originalPcd,ind=radius_outlier	_removal(originalPcd,nb_points=5,radius=0.05)
 		#display_inlier_outlier(originalPcd, ind)
 
 		draw_geometries([originalPcd])
