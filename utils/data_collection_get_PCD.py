@@ -51,15 +51,78 @@ def klampt_2_controller(robotQ):
     temp.append(0)
     return temp
 
-def save_pcd(dev,name,number,transformCameraInWorld):
+def save_pcd_new(dev,name,number,transformCameraInWorld):
+    st0 = time.time()
     dev.wait_for_frames()
-    cad = deepcopy(dev.cad)  #size is 480 x 640 x 3
-    c=deepcopy(dev.color)
-    p = deepcopy(dev.points)
+    
+    color_ori = deepcopy(dev.cad)
+    position_ori = deepcopy(dev.points)
+
+    color = np.reshape(np.array(color_ori),(640*480,3))/255.0
+    pos_ori = np.reshape(np.array(position_ori),(640*480,3))
+    xyzrgb_ori = np.hstack( (pos_ori,color) )
+
+    xyzrgb_ori = xyzrgb_ori[np.all(xyzrgb_ori != 0, axis = 1)]
+    num_points = xyzrgb_ori.shape[0]
+
+    pos_ori = xyzrgb_ori[:,:3].T
+    color = xyzrgb_ori[:,3:]
+    print('[*]get xyzrgb of shape %s'%str(xyzrgb_ori.shape))
+
+    pos_4item = np.vstack( ( pos_ori , np.ones((1,num_points)) ) )
+    R_array = np.array(so3.matrix(transformCameraInWorld[0]))
+    T_array = np.reshape(np.array(transformCameraInWorld[1]),(3,1))
+    Trans_array = np.vstack( (np.hstack( (R_array,T_array)),np.array([0,0,0,1]) ) )
+    pos_trans = np.dot(Trans_array,pos_4item)[:3,:]
+
+    xyzrgb = np.hstack( (pos_trans.T,color) )
+
+    new_xyzrgb_path = name+str(number)+'_new.npy'
+    np.save(new_xyzrgb_path,xyzrgb)
+    
+    st3 = time.time()
+    print('[*]saving pcd with time: %f s'%(st3-st0))
+
+def save_pcd(dev,name,number,transformCameraInWorld):
+    st0 = time.time()
+    dev.wait_for_frames()
+    
+    color_ori = deepcopy(dev.cad)
+    position_ori = deepcopy(dev.points)
+
+    color = np.reshape(np.array(color_ori),(640*480,3))/255.0
+    pos_ori = np.reshape(np.array(position_ori),(640*480,3))
+    xyzrgb_ori = np.hstack( (pos_ori,color) )
+
+    xyzrgb_ori = xyzrgb_ori[np.all(xyzrgb_ori != 0, axis = 1)]
+    num_points = xyzrgb_ori.shape[0]
+
+    pos_ori = xyzrgb_ori[:,:3].T
+    color = xyzrgb_ori[:,3:]
+
+    #print(pos_ori.shape)
+    pos_4item = np.vstack( ( pos_ori , np.ones((1,num_points)) ) )
+    R_array = np.array(so3.matrix(transformCameraInWorld[0]))
+    T_array = np.reshape(np.array(transformCameraInWorld[1]),(3,1))
+    Trans_array = np.vstack( (np.hstack( (R_array,T_array)),np.array([0,0,0,1]) ) )
+    pos_trans = np.dot(Trans_array,pos_4item)[:3,:]
+
+    xyzrgb = np.hstack( (pos_trans.T,color) )
+
+    new_xyzrgb_path = name+str(number)+'_new.xyzrgb'
+    st1 = time.time()
+    np.savetxt(new_xyzrgb_path,xyzrgb,delimiter=' ')
+    st2 = time.time()
+    np.save('test.npy',xyzrgb)
+    st3 = time.time()
+    print('saving pcd with process time: %f s, save new pcd with time: %f s, npy with time: %f s'%(st1-st0,st2-st1,st3-st2))
+    
+    cad = color_ori  #size is 480 x 640 x 3
+    p = position_ori
     print '----------------------------saving data--------------------------------------------'
     data=open(name+str(number)+'.xyzrgb','w')
 
-
+    count = 0
     for i in range(480):
         for j in range(640):
             ptC=cad[i][j]
@@ -68,9 +131,12 @@ def save_pcd(dev,name,number,transformCameraInWorld):
                 ptW=se3.apply(transformCameraInWorld,pt)
                 data.write(str(ptW[0])+' '+str(ptW[1])+' '+str(ptW[2])+' ')
                 data.write(str(float(ptC[0])/255.0)+' '+str(float(ptC[1])/255.0)+' '+str(float(ptC[2])/255.0)+'\n')
+                count = count+1
     data.close()
-    #print se3.apply(transformCameraInWorld,p[111][166]),se3.apply(transformCameraInWorld,p[111][477])
-    #print se3.apply(transformCameraInWorld,p[380][166]),se3.apply(transformCameraInWorld,p[380][477])
+    et = time.time()
+
+    print(count)
+    print('saving pcd with time: %f s'%(et-st3))
 
 def run_collection_PCD(config):
 
@@ -105,7 +171,7 @@ def run_collection_PCD(config):
 
     if mode == "physical":
         serv=pyrs.Service()
-        dev=serv.Device()
+        dev=serv.Device(1)
         dev.apply_ivcam_preset(0)
         time.sleep(0.3)
         print '---------------------camera initiated -----------------------------'
@@ -125,7 +191,7 @@ def run_collection_PCD(config):
         print "------ moving home ---------"
         constantVServo(robotControlApi,5.0,homeConfig2,0.002)
         time.sleep(0.5)
-        robotControlApi.stop()
+        #robotControlApi.stop()
         counter = 0
         for ele in homeConfig2:
             if counter <= 4:
@@ -148,7 +214,9 @@ def run_collection_PCD(config):
     # Take pcd data at different orientations
 
     if mode == "physical":
-        save_pcd(dev,config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_",0,transformCameraInWorld)
+        save_pcd_new(dev,config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_",0,transformCameraInWorld)
+        #TODO:
+    
 
     objectCentroidLocal = [0.365,-0.098,0.0627]
     objectCentroidGlobal = se3.apply(EETransform,objectCentroidLocal)
@@ -170,14 +238,15 @@ def run_collection_PCD(config):
                 vis.add("ghost"+str(i),robot.getConfig())
                 vis.setColor("ghost"+str(i),0,1,0,0.5)
             elif mode == "physical":
-                robotControlApi.start()
-                time.sleep(1.0)
-                constantVServo(robotControlApi,5.0,klampt_2_controller(robot.getConfig()),0.004)
-                time.sleep(0.5)
-                robotControlApi.stop()
+                #robotControlApi.start()
+                time.sleep(0.1)
+                constantVServo(robotControlApi,2.0,klampt_2_controller(robot.getConfig()),0.004)
+                time.sleep(0.1)
+                #robotControlApi.stop()
                 EETransform = link.getTransform()
                 transformCameraInWorld = se3.mul(EETransform,transformCameraInEE)
-                save_pcd(dev,config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_",i+1,transformCameraInWorld)
+                save_pcd_new(dev,config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_",i+1,transformCameraInWorld)
+                #TODO:
                 time.sleep(0.1)
                 ## save the joint positions
                 config_robot = klampt_2_controller(robot.getConfig())
@@ -190,6 +259,9 @@ def run_collection_PCD(config):
                     counter = counter + 1
         else:
             print "IK solver fail"
+
+    #get PCD done.
+    robotControlApi.stop()
 
     if mode == "physical":  
         dev.stop()
