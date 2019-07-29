@@ -1,6 +1,7 @@
 import os
 import argparse
 import calibration_testing
+import multiprocessing
 
 from config import DMConfig
 
@@ -20,13 +21,7 @@ def run_all(config):
     #modeling
     run_collection_PCD(config)    
     run_collection_process_PCD(config)
-    
-    os.system('cp -rf '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/processed ')
-                +os.path.join(config.exp_path,'tmp/processed'))
-    os.system(config.merge_cmd)
-    os.system('cp -f '+os.path.join(config.exp_path,'tmp/TSDF_result.ply ')
-                +os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/TSDF_result.ply'))
-
+    merge_pcd(config)
     run_convert_ply(config)
     run_calculation(config)
     
@@ -40,7 +35,7 @@ def physical_mode(config):
     if not os.path.exists(config.exp_path):
         os.mkdir(config.exp_path)
 
-    config.exp_number = len(os.listdir(config.exp_path))
+    config.exp_number = len(os.listdir(config.exp_path))-2
     
     if config.use_mkdir_exp == True:
         os.mkdir(os.path.join(config.exp_path,'exp_'+str(config.exp_number)))
@@ -64,7 +59,7 @@ def step_mode(config):
     this is to process step by step
     """
     print('[*]Step mode start')
-    config.exp_number = input('---%d experiments exist, experiment number?'%len(os.listdir(config.exp_path)))
+    config.exp_number = input('---%d experiments exist, experiment number?'%(len(os.listdir(config.exp_path))-1) )
     if input('[*]PCD Processing?') != 1:
         print('---Done')
     else:
@@ -73,19 +68,24 @@ def step_mode(config):
         if input('[*]Process PCD?') == 1:
             run_collection_process_PCD(config)
         if input('[*]Merge PCD?') == 1:
-            os.system('rm -r '+os.path.join(config.exp_path,'tmp'))
-            os.system('mkdir '+os.path.join(config.exp_path,'tmp'))
-            os.system('cp -rf '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/processed ')
-                        +os.path.join(config.exp_path,'tmp/processed'))
-            os.system(config.merge_cmd)
-            os.system('cp -f '+os.path.join(config.exp_path,'tmp/TSDF_result.ply ')
-                        +os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/TSDF_result.ply'))
+            merge_pcd(config)
         if input('[*]Convert to ply?') == 1:
             run_convert_ply(config)
             run_calculation(config)
     if input('[*]Poking?') == 1:
+
         run_poking(config)
         print('---Done')
+
+def merge_pcd(config):
+    os.system('rm -r '+os.path.join(config.exp_path,'tmp'))
+    os.system('mkdir '+os.path.join(config.exp_path,'tmp'))
+    os.system('cp -rf '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/processed ')
+                +os.path.join(config.exp_path,'tmp/processed'))
+    os.system(config.merge_cmd)
+    os.system('rm '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/TSDF_result.ply'))
+    os.system('cp -f '+os.path.join(config.exp_path,'tmp/TSDF_result.ply ')
+                +os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/TSDF_result.ply'))
 
 def main():
     """
@@ -146,7 +146,7 @@ def main():
             if args.process == 'physical':
                 if not os.path.exists(config.exp_path):
                     os.mkdir(config.exp_path)
-                config.exp_number = len(os.listdir(config.exp_path))
+                config.exp_number = len(os.listdir(config.exp_path))-1 #note: have a tmp folder
                 
                 if config.use_mkdir_exp == True:
                     os.mkdir(os.path.join(config.exp_path,'exp_'+str(config.exp_number)))
