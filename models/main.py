@@ -1,5 +1,4 @@
-# %load main.py
-# %load main.py
+
 import numpy as np
 import autosklearn.regression
 import sklearn.model_selection
@@ -125,7 +124,7 @@ def my_train_test_split(X,y,num_point=1,train_size=0.8):
     return X_train, X_test, y_train, y_test
 
 def main():
-    train_sizes = np.arange(0.1,0.9,0.1)
+    train_sizes = np.arange(0.25,1.0,0.05)
     model_index = 0
 
     for train_size in train_sizes:
@@ -141,10 +140,10 @@ def main():
         y_test = y_test[::5]
         
         automl = autosklearn.regression.AutoSklearnRegressor(
-                time_left_for_this_task=7200,
-                per_run_time_limit=1080,
-                tmp_folder='/tmp/autosklearn_regression_dm',
-                output_folder='/tmp/autosklearn_regression_dm_out',)
+                time_left_for_this_task=720,
+                per_run_time_limit=60,
+                tmp_folder='/tmp/autosklearn_regression_dm2',
+                output_folder='/tmp/autosklearn_regression_dm2_out',)
         
         automl.fit(X_train, y_train)
         y_hat = automl.predict(X_test)
