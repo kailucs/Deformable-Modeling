@@ -66,7 +66,7 @@ python main.py --process debugging --step y --probe point
 
 In step mode, it will be easier to debug and make sure the robot works right.
 
-*note: when first power on ur5, need to swich control mode local then remote.
+*note: when first power on ur5, need to swich control mode local then remote.*
 
 `calibration_testing`:Doing the calibration first.
 
