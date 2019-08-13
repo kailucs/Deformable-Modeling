@@ -52,7 +52,6 @@ def klampt_2_controller(robotQ):
     temp.append(0)
     return temp
 
-
 def picture():
     world = WorldModel()
     fn = "robot_model_data/ur5Blocks.xml" #correct UR5e model
@@ -100,23 +99,14 @@ def picture():
     ## Record some home configuration
     homeConfig=[-1.12599113833, -1.2611406849502682, 1.7447619654909734, 1.0871459070013214, 1.5707712083198737, 2.800998336141926, 0]#controller format
     constantVServo(robotControlApi,10.0,homeConfig,0.001)
-    ## update current position
-    #robot.setConfig(controller_2_klampt(robot,homeConfig))
-    #time.sleep(3)
 
     print '---------------------at home configuration -----------------------------'
 
     #EETransformFile=open('calibration_EE_transforms.txt',w)
 
     for i in range(num_pic):
-        constantVServo(robotControlApi,5.0,calibrationConfigs[i],0.004)
+        constantVServo(robotControlApi,2.0,calibrationConfigs[i],0.004)
         time.sleep(0.5)
-        ## update current position
-        #dev.wait_for_frames()
-        #cad = dev.color
-        #cad = cv2.cvtColor(cad, cv2.COLOR_RGB2BGR)
-        #p=dev.points
-        #cv2.imwrite('pics/calbration_pic_'+str(i)+'.png',cad)
 
         # For Color
         dev.wait_for_frames()
@@ -124,6 +114,8 @@ def picture():
         cad = cv2.cvtColor(cad, cv2.COLOR_RGB2BGR)
         p=dev.points
         cv2.imwrite(data_path+'data/calbration_pic_'+str(i)+'.png',cad)
+        cv2.imshow('color',cad)
+        cv2.waitKey(500)
         data=open(data_path+'data/calibration_pt_'+str(i)+'.txt','w')
         for y in range(480):
             for x in range(640):
@@ -131,12 +123,11 @@ def picture():
         data.close()
         time.sleep(0.5)
 
-        print i
+        print('piont %d'%i)
 
     dev.stop()
     serv.stop()
 
-    #EETransformFile.close()
     robotControlApi.stop()
 
 if __name__ == "__main__":

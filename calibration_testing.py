@@ -6,9 +6,9 @@ def calibration():
     """
     calibration function 
     """
-    calculation()
-    generation()
     picture()
+    generation()
+    calculation()
     print('calibration successful.')
     
 if __name__ == "__main__":

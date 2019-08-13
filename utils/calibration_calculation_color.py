@@ -128,7 +128,9 @@ def calculation():
 
 
     print "Saving to calibrated_camera_xform.txt"
-    loader.save(Tcamera,"RigidTransform",calidata_path+"calibrated_camera_xform.txt")
+    cali_txt_path = calidata_path+"calibrated_camera_xform.txt"
+    loader.save(Tcamera,"RigidTransform",cali_txt_path)
+    
     if ESTIMATE_MARKER_TRANSFORM:
         print "Saving to calibrated_marker_link_xform.txt"
         loader.save(T_marker_assumed,"RigidTransform",calidata_path+"calibrated_marker_world_xform.txt")
@@ -138,27 +140,6 @@ def calculation():
         Tm_c_est = se3.mul(se3.mul(se3.inv(Tcamera),se3.inv(Tl)),T_marker_assumed)
         SSE_t += vectorops.distanceSquared(Tm_c,Tm_c_est[1])
     print "RMSE translations (meters)",np.sqrt(SSE_t/len(Tlinks))
-
-
-    #vis.add("CAMERA",Tcamera)  #Camera world position
-    ##vis.add("CAMERA2",Tcamera2)
-    #vis.setAttribute("CAMERA","width",2)
-    #for i,Tm in enumerate(Tmarkers):
-        #vis.add("m_"+str(i),Tm)
-        #vis.setAttribute("m_"+str(i),"length",0.03)
-        #vis.add("m2_"+str(i),se3.apply(Tcamera,marker_transforms[i][1]))
-        #vis.add("m2_"+str(i),se3.apply(Tcamera2,marker_transforms[i][1]))
-        #vis.setAttribute("m2_"+str(i),"length",0.03)
-
-
-        #vis.setColor("m2_"+str(i),0,0,0)
-    #for i,Tc in enumerate(Tcameras):
-    #	vis.add("c_"+str(i),Tc)
-    #	vis.setAttribute("c_"+str(i),"length",0.03)
-
-    #vis.show()
-    #while vis.shown():
-    #	time.sleep(1.0)
 
 if __name__ == "__main__":
     calculation()

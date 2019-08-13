@@ -8,8 +8,6 @@ def run_convert_ply(config):
 
 	for line in file1:
 		line=line.rstrip()
-		#l=[num for num in line.split(' ')]
-		#l2=[float(num) for num in l]
 		if counter == 3:
 			l=[elem for elem in line.split(' ')]
 			NofVertices = int(l[2])#124530

@@ -62,7 +62,10 @@ def save_pcd_new(dev,name,number,transformCameraInWorld):
     pos_ori = np.reshape(np.array(position_ori),(640*480,3))
     xyzrgb_ori = np.hstack( (pos_ori,color) )
 
-    xyzrgb_ori = xyzrgb_ori[np.all(xyzrgb_ori != 0, axis = 1)]
+    # core! 
+    #xyzrgb_ori = xyzrgb_ori[np.all(xyzrgb_ori != 0, axis = 1)]
+    #xyzrgb_ori = xyzrgb_ori[xyzrgb_ori[:,0:3]!=np.array([0,0,0])]
+    #xyzrgb_ori = xyzrgb_ori[xyzrgb_ori[:,3]!=0 or xyzrgb_ori[:,4]!=0 or xyzrgb_ori[:,5]!=0]
     num_points = xyzrgb_ori.shape[0]
 
     pos_ori = xyzrgb_ori[:,:3].T
@@ -171,7 +174,7 @@ def run_collection_PCD(config):
 
     if mode == "physical":
         serv=pyrs.Service()
-        dev=serv.Device(1)
+        dev=serv.Device()
         dev.apply_ivcam_preset(0)
         time.sleep(0.3)
         print '---------------------camera initiated -----------------------------'
@@ -182,7 +185,7 @@ def run_collection_PCD(config):
         robotControlApi = UR5WithGripperController(host=config.robot_host,gripper=False)
         robotControlApi.start()
         time.sleep(3)
-        file = open(config.exp_path+'exp_'+str(config.exp_number)+"/joint_positions.txt",'w')
+        file1 = open(config.exp_path+'exp_'+str(config.exp_number)+"/joint_positions.txt",'w')
         print '---------------------robot started -----------------------------'
 
     ## Record some home configuration
@@ -195,9 +198,9 @@ def run_collection_PCD(config):
         counter = 0
         for ele in homeConfig2:
             if counter <= 4:
-                file.write(str(ele)+' ')
+                file1.write(str(ele)+' ')
             else:
-                file.write(str(ele)+'\n')
+                file1.write(str(ele)+'\n')
             counter = counter + 1
 
     ## update current position
@@ -206,7 +209,7 @@ def run_collection_PCD(config):
     
     if mode == "debugging":
         vis.add("world",world)
-        #vis.add("ghost"+"_home",robot.getConfig())
+    
     print '---------------------at home configuration -----------------------------'
     transformCameraInWorld=se3.mul(EETransform,transformCameraInEE)
        
@@ -217,13 +220,14 @@ def run_collection_PCD(config):
         save_pcd_new(dev,config.exp_path+'exp_'+str(config.exp_number)+"/objectScan_",0,transformCameraInWorld)
         #TODO:
     
-
     objectCentroidLocal = [0.365,-0.098,0.0627]
     objectCentroidGlobal = se3.apply(EETransform,objectCentroidLocal)
+    
     S=math.sin(15.0*3.14/180.0)
     C=math.cos(15.0*3.14/180.0)
     Z = [[-C,0,-S],[-1,0,0],[-C,0,S],[-1,0,0]] #rotate 20 degrees
     Y = [[0,-1,0],[0,-C,S],[0,-1,0],[0,-C,-S]]
+
     for i in range(4):
         local1 = objectCentroidLocal
         local2 = vectorops.add(objectCentroidLocal,[0,1,0])
@@ -231,6 +235,7 @@ def run_collection_PCD(config):
         global1 = objectCentroidGlobal
         global2 = vectorops.add(objectCentroidGlobal,Y[i])
         global3 = vectorops.add(objectCentroidGlobal,Z[i])
+
         goal=ik.objective(link,local=[local1,local2,local3],world=[global1,global2,global3])
         res=ik.solve_nearby(goal,maxDeviation=1,tol=0.00001)
         if res:
@@ -253,9 +258,9 @@ def run_collection_PCD(config):
                 counter = 0
                 for ele in config_robot:
                     if counter <= 4:
-                        file.write(str(ele)+' ')
+                        file1.write(str(ele)+' ')
                     else:
-                        file.write(str(ele)+'\n')
+                        file1.write(str(ele)+'\n')
                     counter = counter + 1
         else:
             print "IK solver fail"
@@ -266,7 +271,7 @@ def run_collection_PCD(config):
     if mode == "physical":  
         dev.stop()
         serv.stop()
-        file.close()
+        file1.close()
     
     elif mode == "debugging":
         robot.setConfig(controller_2_klampt(robot,homeConfig2))

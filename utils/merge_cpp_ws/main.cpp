@@ -17,7 +17,7 @@ int main(int argc,char** argv)
 {
 	//load first point cloud
 	PointCloud3D pc;
-	const char* fn1 = "../experiment_data/processed/objectScan_0.pcd";
+	const char* fn1 = "experiment_data/tmp/processed/objectScan_0.pcd";
 	//char* fn1 = "../pcd_data/objectScan_0.pcd";
 	bool res;
 	res = pc.LoadPCL(fn1);
@@ -41,28 +41,41 @@ int main(int argc,char** argv)
 	TriMesh mesh;
 	reconstruction -> ExtractMesh(mesh);
 	*/
-	Vector3 cellSize = {0.001,0.001,0.006};
-	SparseTSDFReconstruction reconstruction(cellSize);
-	reconstruction.Fuse(Tcamera1,pc);
+
+	Vector3 cellSize = {0.0006,0.0006,0.001};
+	Vector3 cellSize2 = {0.001,0.001,0.001};
+	SparseTSDFReconstruction reconstruction(cellSize); //use this to perform ICP
+	SparseTSDFReconstruction reconstruction2(cellSize2); //less dense.
+	RigidTransform Tcamera = Tcamera1;
+	reconstruction.Fuse(Tcamera,pc);
+	reconstruction2.Fuse(Tcamera,pc);
 
 	// really bad code.... but I'm not sure how to concatenate char, and whether
 	// pc.loadPCL will remove the existing pcl...
-	for(int i=1;i<5;i++)
+	for(int i=1 ;i<5;i++)
 	{
-		string fn = "../experiment_data/processed/objectScan_"+str(i)+".pcd";
-		ointCloud3D pc;
+		string fn = "experiment_data/tmp/processed/objectScan_"+to_string(i)+".pcd";
+		PointCloud3D pc;
 		pc.LoadPCL(fn.c_str());
-		reconstruction.Fuse(Tcamera1,pc);
+		ICPParameters params;
+		reconstruction.Register(pc,Tcamera,params);
+		cout<<params.Tcamera<<endl;
+		//reconstruction.Fuse(Tcamera1,pc);
+		Tcamera = params.Tcamera;
+		reconstruction.Fuse(Tcamera,pc);
+		reconstruction2.Fuse(Tcamera,pc);
+		cout<<i<<endl;
 	}
 
 	//Extract a colored mesh
 	GeometryAppearance app;
 	TriMesh mesh;
-	reconstruction.ExtractMesh(mesh,app);
+	reconstruction2.ExtractMesh(mesh,app);
 	//app.SetColor(1.0f,0.2f,0.2f,0.5f);
-	const char* fn0 = "../experiment_data/TSDF_result.ply"; // ply format seems to be the only
-										// cross section between Assimp and Open3D....
-	cout << "flag1\n" ;
+	const char* fn0 = "experiment_data/tmp/TSDF_result.ply"; // ply format seems to be the only
+										// cross section between Assimp and Open3D....	
+	//cout << "flag1\n" ;
+	//cout << "done\n" ;
 	//res = Export(fn2,mesh,app);
 	res = SaveAssimp(fn0,mesh,app);
 	if (res) cout << "----- Extracted mesh exported -----" << "\n";
