@@ -154,8 +154,8 @@ def main():
         automl = autosklearn.regression.AutoSklearnRegressor(
                 time_left_for_this_task=3600,
                 per_run_time_limit=300,
-                tmp_folder='/tmp0',
-                output_folder='/tmp00',
+                tmp_folder='/tmp1'
+                output_folder='/tmp2',
                 )
         
         automl.fit(X_train, y_train)
