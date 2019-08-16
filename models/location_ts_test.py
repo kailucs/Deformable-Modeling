@@ -21,7 +21,7 @@ def load_data(point_path, force_path, probe_type='point', datatype='1'):
         l=[num for num in line.split(' ')]
         l2=[float(num) for num in l]
         points.append(l2[0:3])
-        colors.append(l2[0:3])
+        colors.append(l2[3:6])
         normals.append(l2[6:9])
         curvatures.append(l2[9])
     dataFile.close()
