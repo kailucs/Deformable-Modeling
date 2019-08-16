@@ -6,6 +6,7 @@ import sklearn.metrics
 import scipy
 import pickle
 import random
+from klampt.math import vectorops
 
 def load_data(point_path, force_path, probe_type='point', datatype='1'):
     
@@ -13,7 +14,7 @@ def load_data(point_path, force_path, probe_type='point', datatype='1'):
     colors=[]
     normals=[]
     curvatures=[]
-
+    theta = []
     
     dataFile=open(point_path,'r')
     for line in dataFile:
@@ -24,6 +25,9 @@ def load_data(point_path, force_path, probe_type='point', datatype='1'):
         colors.append(l2[3:6])
         normals.append(l2[6:9])
         curvatures.append(l2[9])
+        #normalize
+        tmp_theta = vectorops.unit(l2[10:13])
+        theta.append(tmp_theta)
     dataFile.close()
     
     # normalize, note colors and normals is 0~1
@@ -52,22 +56,15 @@ def load_data(point_path, force_path, probe_type='point', datatype='1'):
         force=[]
         force_normal=[]
         displacement=[]
-        theta=[]
 
         dataFile=open(force_path,'r')
         for line in dataFile:
             line=line.rstrip()
             l=[num for num in line.split(' ')]
             l2=[float(num) for num in l]
-            if probe_type == 'point':
-                force.append(l2[0:3])
-                force_normal.append(l2[3])
-                displacement.append(l2[4])
-            else:
-                force.append(l2[0:3])
-                force_normal.append(l2[3])
-                displacement.append(l2[4])
-                theta.append(l2[5:7])
+            force.append(l2[0:3])
+            force_normal.append(l2[3])
+            displacement.append(l2[4])
         dataFile.close()
 
         # clean
@@ -78,7 +75,7 @@ def load_data(point_path, force_path, probe_type='point', datatype='1'):
             num_dis = len(displacement)
             #print('---load %d displacement'%num_dis)
             displacement = np.resize(np.array(displacement),(num_dis,1)) 
-            X_i = np.hstack((np.tile(points[i],(num_dis,1)), displacement))
+            X_i = np.hstack((np.tile(points[i],(num_dis,1)), np.tile(normals[i],(num_dis,1)), np.tile(theta[i],(num_dis,1)) displacement))
             Y_i = np.array(force_normal,ndmin=2).T
             '''
             if insert_i == 0:
@@ -136,7 +133,7 @@ def main():
     model_index = 7
     for train_size in train_sizes:
     #for exp_index in range(1):
-        X,y = load_data('./probePcd.txt','.') #note: is list  
+        X,y = load_data('./probePcd_line_theta_new.txt','.') #note: is list  
         X_train, X_test, y_train, y_test = my_train_test_split(X, y, train_size=train_size,select_method='uniform')
         print('[*]dataset loaded! Train: %s, Test: %s'%(X_train.shape,X_test.shape),file=logfile)
         print('[*]dataset loaded! Train: %s, Test: %s'%(X_train.shape,X_test.shape))
