@@ -13,7 +13,6 @@ def load_data(point_path, force_path, probe_type='point', datatype='1'):
     normals=[]
     curvatures=[]
 
-    
     dataFile=open(point_path,'r')
     for line in dataFile:
         line=line.rstrip()
@@ -38,11 +37,6 @@ def load_data(point_path, force_path, probe_type='point', datatype='1'):
     num_point = len(points)
     print('[*]load %d points, and normalized'%num_point)
 
-    '''
-    X = np.array([[]])
-    Y = np.array([[]])
-    insert_i = 0
-    '''
     X=[]
     Y=[]
 
