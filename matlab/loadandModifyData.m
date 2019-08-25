@@ -6,7 +6,7 @@ DATAFOLDER = 'data/exp_4/';
 %pcd:[position(3) color(3) normal(3) curvature(1)]
 pcd = dlmread(strcat(DATAFOLDER,'originalPcd.txt'),' ');
 %% Point Data
-%Data matrix:[position(3) color(3) curvature(1) displacement(1) force(1)]
+%Data matrix:[position(3) color(3) curvature(1) displacement(1) force(1)]#TODO:
 %probedPoint = [position(3) color(3) normal(3) curvature(1)]
 %minMaxDisp = 5;
 probedPoints = dlmread(strcat(DATAFOLDER,'probePcd.txt'),' ');
@@ -28,6 +28,8 @@ for i=1:1:m
     %    minMaxDisp = forceData(end,1);
     %end
 end
+
+
 %minMaxDisp
 
 %% Line Data
@@ -68,6 +70,7 @@ for i=1:1:size(probedPointsLine,1)
     lineNormals = [lineNormals;normal];
     lineTorqueAxes = [lineTorqueAxes;axis];
 end
+%#TODO:
 lineData.lineStarts = lineStarts;
 lineData.lineEnds = lineEnds;
 lineData.lineNormals = lineNormals;
@@ -96,6 +99,9 @@ for i=1:1:size(probedPoints,1)
 end
 lineData.data = data;
 lineData.startEndIndex = startEndIndex;
+%#TODO:
+
+
 %% Generate Training and Testing POINT data 
 fullIndex = 1:1:size(probedPoints,1);
 %%% randomly sample N locations
@@ -118,7 +124,6 @@ for ele = trainingIndex
         A = repmat(point,forceDataN,1);
         B =[A forceData];
         trainingData = [trainingData;B];
-
 end
 
 %% get the scale of the data
