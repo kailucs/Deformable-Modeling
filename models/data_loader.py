@@ -297,12 +297,12 @@ def normalize_points(points, p_min=0, max_range=0):
     for i in range(3):
         points[:,i] = (points[:,i]-p_min[i])/max_range
     
-    print('normalize config: ','min: ', p_min, 'max_range: ',max_range)
+    #print('normalize config: ','min: ', p_min, 'max_range: ',max_range)
     return points 
 
 if __name__ == "__main__":
     #test
-    X,y=load_data(exp_path='../../data/exp_3_debiased/',
+    X,y=load_data(exp_path='../data_final/exp_3_debiased/',
                     probe_type='point',
                     Xtype='loc',
                     ytype='fn')
@@ -318,16 +318,16 @@ if __name__ == "__main__":
     print(Xy.shape)
     print('load ori data with displacement: %f'%set_displacement)
 
-    pcd = load_pcd('../../data/exp_3_debiased/probePcd.txt','return_lines')
+    pcd = load_pcd('../data_final/exp_3_debiased/probePcd.txt','return_lines')
 
-    line_starts,line_ends,normals,line_torque_axes =\
-        cal_line_data('../../data/exp_3/')
+    #line_starts,line_ends,normals,line_torque_axes =\
+    #    cal_line_data('../data_final/exp_3_debiased/')
 
-    m = load_model('/home/dactl/Deformable-Modeling-M/data_final/exp_3_debiased/models/model_mutimodels_0.pkl')
+    #m = load_model('/home/dactl/Deformable-Modeling-M/data_final/exp_3_debiased/models/model_mutimodels_0.pkl')
     
-    y_predict = m.predict(X_test)
+    #y_predict = m.predict(X_test)
     
-    print(y_predict.shape)
+    #print(y_predict.shape)
     #print(X[10],y[10])
     #print(pcd)
     #print(line_starts,line_ends,normals,line_torque_axes)

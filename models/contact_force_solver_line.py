@@ -1,12 +1,18 @@
 from data_loader import *
 from scipy import spatial
 from copy import deepcopy
-
+import time
 def invKernel(p1,p2,param):
     r = vo.norm(vo.sub(p1,p2))
     return param/(param+r)
+def linearKernel(p1,p2,param):
+    r = vo.norm(vo.sub(p1,p2))
+    if r <= param:
+        return (param-r)/param
+    else:
+        return 0 
 
-def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,X,Y,pcd,param,discretization,num_iter,queryDList):
+def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discretization,num_iter,queryDList,model,offset):
     DEBUGPROJECTEDPTS = False
     DEBUGDISPLACEDPTS = False
     predictedForcesAll = []
@@ -27,11 +33,9 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,X,Y,pcd,param,di
                         np.dot(vo.sub(lineEnd0,lineStart0),localYinW)]
         #################first project the pcd to the plane of the line##############
         #The start point is the origin of the plane...
-        projectedPcd = [] 
+        projectedPcd = [] #Each point is R^10 
+        projectedPcdLocal = [] #localXY coordinate
         #the projected Pcd is in local frame....
-        projectedPcdIdxList = []#Idx in the original pcd 
-        NofProjectedPoints = 0
-        #pcdThatWasProjected = []
         for i in range(len(pcd)):
             p = pcd[i][0:3]
             projectedPt = vo.sub(p,vo.mul(lineNormal,vo.dot(vo.sub(p,lineStart0),lineNormal))) ##world origin
@@ -40,21 +44,15 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,X,Y,pcd,param,di
             #%make sure point is in the "box" defined by the line
             if ((projectedPt2DinLocal[0]<0.051) and (projectedPt2DinLocal[0] > -0.001)
                 and (projectedPt2DinLocal[1]<0.001) and (projectedPt2DinLocal[1]>-0.001)):
-                NofProjectedPoints = NofProjectedPoints + 1
-                projectedPcd.append(projectedPt2DinLocal)
-                projectedPcdIdxList.append(i)
-                #pcdThatWasProjected.append(p)
-
-
+                projectedPcdLocal.append(projectedPt2DinLocal)
+                projectedPcd.append(pcd[i])
         #Create a KDTree for searching
-        projectedPcdTree = spatial.KDTree(projectedPcd)
-
+        projectedPcdTree = spatial.KDTree(projectedPcdLocal)
         ###############Find the corresponding point on the surface to the line############
         surfacePtsAll = []# %These are the surface pts that will be displaced.
         #%part of the probe not in contact with the object...
         #average 3 neighbors
-        NofN = 3  
-        
+        NofN = 3         
         for i in range(int(N)):
             tmp =vo.mul(vo.sub(lineEnd0,lineStart0),s[i])#%the point on the line, projected 
             linePt = [vo.dot(tmp,localXinW),vo.dot(tmp,localYinW)]
@@ -64,7 +62,7 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,X,Y,pcd,param,di
             #or should average a few neighbors
             surfacePt = [0]*10
             for j in range(NofN):
-                surfacePt = vo.add(surfacePt,pcd[projectedPcdIdxList[Idx[j]]][0:10])
+                surfacePt = vo.add(surfacePt,projectedPcd[Idx[j]][0:10])
             surfacePt = vo.div(surfacePt,NofN)
             surfacePtsAll.append(surfacePt) #position in the global frame..
         
@@ -73,30 +71,30 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,X,Y,pcd,param,di
         totalFinNList = []
         #for queryD = -0.003:0.001:0.014
         for queryD in queryDList:
-            print(queryD)
+            #startTime2 = time.time()
+            #print(queryD)
             lineStart = vo.sub(lineStart0,vo.mul(lineNormal,queryD))
             lineEnd = vo.sub(lineEnd0,vo.mul(lineNormal,queryD))
             lineCenter = vo.div(vo.add(lineStart,lineEnd),2)
-            localXinW = vo.div(vo.sub(lineEnd,lineStart),vo.norm(vo.sub(lineEnd,lineStart)))
-            localYinW = vo.div(lineTorqueAxis,vo.norm(lineTorqueAxis))
-
+            torqueCenter = vo.add(lineCenter,vo.mul(lineNormal,0.09))
             ####calculate the nominal displacements
-            surfacePts = []; #These are the surface pts that will be displaced...
-            nominalD = []; #Column Vector..
+            surfacePts = [] #These are the surface pts that will be displaced...
+            rigidPtsInContact = []
+            nominalD = [] #Column Vector..
             for i in range(int(N)):
-                linePt = vo.add(vo.mul(vo.sub(lineEnd,lineStart),s[i]),lineStart)
+                linePt = vo.add(vo.mul(vo.sub(lineEnd,lineStart),s[i]),lineStart)              
                 surfacePt = surfacePtsAll[i][0:3]
                 normal = surfacePtsAll[i][6:9]
                 nominalDisp = -vo.dot(vo.sub(linePt,surfacePt),normal)
                 if nominalDisp > 0:
                     surfacePts.append(surfacePtsAll[i][0:10])#position in the global frame..
+                    rigidPtsInContact.append(linePt)
                     nominalD.append(nominalDisp)
             originalNominalD = deepcopy(nominalD)
             #print('Deformed Surface Points',surfacePts)
-            print('Calculating Actual D....')
+            #print('Calculating Actual D....')
             #####Calculate actual displacements
             NofSurfacePts = len(surfacePts)
-            originalSurfacePts = deepcopy(surfacePts)
             if NofSurfacePts > 0:
                 negativeDisp = True
                 while negativeDisp:
@@ -106,33 +104,51 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,X,Y,pcd,param,di
                         for j in range(NofSurfacePts):
                             K[i][j] = invKernel(surfacePts[i][0:3],surfacePts[j][0:3],param)
                     #print K
+                    #startTime = time.time()
                     actualD =  np.dot(np.linalg.inv(K),nominalD)
+                    #print('Time spent inverting matrix',time.time()- startTime)
                     #print nominalD,actualD
                     negativeIndex = actualD < 0
                     if np.sum(negativeIndex) > 0:
                         actualD = actualD.tolist()
-                        positiveIndex = actualD >= 0
-                        #surfacePts = surfacePts[positiveIndex]
                         surfacePts = [surfacePts[i] for i in range(len(surfacePts)) if actualD[i]>=0]
                         nominalD = [nominalD[i] for i in range(len(nominalD)) if actualD[i]>=0]
+                        rigidPtsInContact = [rigidPtsInContact[i] for i in range(len(rigidPtsInContact)) if actualD[i]>=0]
                     else:
                         negativeDisp = False
                 
-                ##########calculate force
+                ##########calculate force and torque
                 totalForce = 0
-                #totalTorque = 0
-                predictedForces.append(totalForce)
+                totalTorque = 0
+
                 #predictedTorques.append(totalTorque)
-
-                for i in range(len(SurfacePts)):
+                #print("actual displacement:",actualD)
+                #startTime = time.time()
+                for i in range(len(surfacePts)):
                     queryPt = surfacePts[i][0:3] + [actualD[i]]
-
-
-
+                    queryPt = np.array(queryPt,ndmin=2)
+                    queryPt = normalize_points(queryPt,offset[0:3],offset[3])
+                    force = model.predict(queryPt)
+                    totalForce = totalForce + force[0]
+                    torqueArm = vo.sub(rigidPtsInContact[i],torqueCenter)
+                    normal = surfacePts[i][6:9]
+                    torque = vo.cross(torqueArm,vo.mul(normal,force[0]))
+                    totalTorque = totalTorque + vo.dot(torque,lineTorqueAxis)  
+                #timeSpentQueryingModel = time.time()- startTime
+                #print('Time spent querying point model',timeSpentQueryingModel)
+                
+                predictedForces.append(totalForce)
+                predictedTorques.append(totalTorque)
             else:
                 predictedForces.append(0)
+                predictedTorques.append(0)
             #print originalNominalD
             #print nominalD,actualD
+            #timeSpentQueryingDisplacement = time.time()- startTime2
+            #print('Time spent querying a displacement',timeSpentQueryingDisplacement)
+            #if NofSurfacePts > 0:
+            #    print('Ratio:',timeSpentQueryingModel/timeSpentQueryingDisplacement)
         predictedForcesAll.append(predictedForces)
-    return predictedForcesAll
+        predictedTorquesAll.append(predictedTorques)
+    return predictedForcesAll,predictedTorquesAll
 

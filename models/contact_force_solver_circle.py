@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 from data_loader import *
 from scipy import spatial
@@ -17,30 +18,13 @@ def inRadius(pt,pts,radius):
             return True
     return False
 
-def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discretization,num_iter,queryDList):
-    DEBUGPROJECTEDPTS = False
-    DEBUGDISPLACEDPTS = False
-    OPEN3DVIS = False
-
-    #create a pcd in open3D
-    open3dPcd = PointCloud()
-    xyz = []
-    rgb = []
-    for ele in pcd:
-        xyz.append(ele[0:3])
-        rgb.append(ele[3:6])
-    open3dPcd.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
-    open3dPcd.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
-
-
-
+def create_circle(discretization):
     ################################
     #first create the 2D points for the circle
     #let the local x axis be -normal
     #local y's projection parallel with global y
     #then the local 2D points are on a y-z plane
-
-    #first add points on the perimeter
+    diameter = 0.03
     rigidPointsLocal = []
     Np = int(math.floor(diameter*math.pi/discretization))
     for i in range(Np):
@@ -58,13 +42,33 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
                 if not (inRadius(pt,rigidPointsLocal,discretization/2.0)): 
                     rigidPointsLocal2.append(pt)
 
-    rigidPointsLocal = rigidPointsLocal + rigidPointsLocal2
-    #tmp = np.array(rigidPointsLocal)
-    #plt.plot(tmp[:,1],tmp[:,2],'.')
-    #plt.axis('equal')
-    #plt.show()
+    return rigidPointsLocal+rigidPointsLocal2
 
-    print 'There is a total of',len(rigidPointsLocal),'rigid surface pts'
+def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,queryDList,model,offset):
+    DEBUGPROJECTEDPTS = False
+    DEBUGDISPLACEDPTS = False
+    OPEN3DVIS = False
+    diameter = 0.04
+    #create a pcd in open3D
+    if OPEN3DVIS:
+        open3dPcd = PointCloud()
+        xyz = []
+        rgb = []
+        for ele in pcd:
+            xyz.append(ele[0:3])
+            rgb.append(ele[3:6])
+        open3dPcd.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
+        open3dPcd.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
+
+
+
+    ################################
+    #first create the 2D points for the circle
+    #let the local x axis be -normal
+    #local y's projection parallel with global y
+    #then the local 2D points are on a y-z plane
+
+    #first add points on the perimeter
     predictedForcesAll = []
     predictedTorquesAll = []
     #Iterate through different probe locations
@@ -104,12 +108,10 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
         
         ################# project the pcd to the plane of the circle##############
         #The start point is the origin of the plane...
-        projectedPcd = [] 
-        #the projected Pcd is in local frame....
-        projectedPcdIdxList = []#Idx in the original pcd 
-        NofProjectedPoints = 0
-        if OPEN3DVIS:
-            pcdThatWasProjected = []
+        projectedPcdinW = []
+        projectedPcdLocal = [] 
+        #if OPEN3DVIS:
+        #    pcdThatWasProjected = []
         for i in range(len(pcd)):
             p = pcd[i][0:3]
             projectedPt = vo.sub(p,vo.mul(circleNormal,vo.dot(vo.sub(p,center),circleNormal))) ##world origin
@@ -117,11 +119,10 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
             projectedPt2DinLocal = [vo.dot(projectedPt2D,localYinW),vo.dot(projectedPt2D,localZinW)]
             #%make sure point is in the "box" defined by the line
             if vo.norm(projectedPt2DinLocal)< (diameter/2.0+0.001):
-                NofProjectedPoints = NofProjectedPoints + 1
-                projectedPcd.append(projectedPt2DinLocal)
-                projectedPcdIdxList.append(i)
-                if OPEN3DVIS:
-                    pcdThatWasProjected.append(p)
+                projectedPcdLocal.append(projectedPt2DinLocal)
+                projectedPcdinW.append(pcd[i])
+                #if OPEN3DVIS:
+                #    pcdThatWasProjected.append(p)
 
         ######## visualize in open3D for debugging ########
         if OPEN3DVIS:
@@ -139,7 +140,7 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
         ###############Find the corresponding points on the deformable object############
         surfacePtsAll = []# %These are the surface pts that will be displaced.
         #Create a KDTree for searching
-        projectedPcdTree = spatial.KDTree(projectedPcd)
+        projectedPcdTree = spatial.KDTree(projectedPcdLocal)
         #average 3 neighbors
         NofN = 3   
         for i in range(len(rigidPointsinW)):
@@ -150,7 +151,7 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
             #or should average a few neighbors
             surfacePt = [0]*10
             for j in range(NofN):
-                surfacePt = vo.add(surfacePt,pcd[projectedPcdIdxList[Idx[j]]][0:10])
+                surfacePt = vo.add(surfacePt,projectedPcdinW[Idx[j]][0:10])
             surfacePt = vo.div(surfacePt,NofN)
             surfacePtsAll.append(surfacePt)
 
@@ -168,12 +169,14 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
         ############# Go through a list of displacements
         #queryDList = [0.012]
         totalFinNList = []
-        #for queryD = -0.003:0.001:0.014
+        #for queryD = -0.003:0.001:0.014        
         for queryD in queryDList:
-            print 'queryD is',queryD
-            ####calculate the nominal displacements
+            #print 'queryD is',queryD
+            torqueCenter = vo.add(center,vo.mul(circleNormal,0.09-queryD))           
+            ####calculate the nominal displacements                      
             surfacePts = []; #These are the surface pts that will be displaced...
             nominalD = []; #Column Vector..
+            rigidPtsInContact = []
             for i in range(len(rigidPointsinW)):
                 circlePt = vo.sub(rigidPointsinW[i],vo.mul(circleNormal,queryD))
                 surfacePt = surfacePtsAll[i][0:3]
@@ -182,6 +185,7 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
                 if nominalDisp > 0:
                     surfacePts.append(surfacePtsAll[i][0:10])#position in the global frame..
                     nominalD.append(nominalDisp)
+                    rigidPtsInContact.append(circlePt)
             originalNominalD = deepcopy(nominalD)
 
             if OPEN3DVIS:
@@ -196,7 +200,6 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
                 draw_geometries([open3dCircularPcd,open3dDisplacedPcd])
     
             #print('Deformed Surface Points',surfacePts)
-            print('Calculating Actual D....')
             #####Calculate actual displacements
             NofSurfacePts = len(surfacePts)
             originalSurfacePts = deepcopy(surfacePts)
@@ -213,22 +216,39 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
                     #print nominalD,actualD
                     negativeIndex = actualD < 0
                     if np.sum(negativeIndex) > 0:
+                        #print(len(surfacePts),len(nominalD),len(rigidPtsInContact))
                         actualD = actualD.tolist()
-                        positiveIndex = actualD >= 0
-                        #surfacePts = surfacePts[positiveIndex]
                         surfacePts = [surfacePts[i] for i in range(len(surfacePts)) if actualD[i]>=0]
                         nominalD = [nominalD[i] for i in range(len(nominalD)) if actualD[i]>=0]
+                        rigidPtsInContact = [rigidPtsInContact[i] for i in range(len(rigidPtsInContact)) if actualD[i]>=0]
                     else:
                         negativeDisp = False
 
-                ##########calculate force
+                ##########calculate force and torque
                 totalForce = 0
-                #totalTorque = 0
-                predictedForces.append(totalForce)
-                #predictedTorques.append(totalTorque)
+                totalTorque = [0,0,0]
 
+                #predictedTorques.append(totalTorque)
+                #print("actual displacement:",actualD)
+                #startTime = time.time()
+                for i in range(len(surfacePts)):
+                    queryPt = surfacePts[i][0:3] + [actualD[i]]
+                    queryPt = np.array(queryPt,ndmin=2)
+                    queryPt = normalize_points(queryPt,offset[0:3],offset[3])
+                    force = model.predict(queryPt)
+                    totalForce = totalForce + force[0]
+                    torqueArm = vo.sub(rigidPtsInContact[i],torqueCenter)
+                    normal = surfacePts[i][6:9]
+                    torque = vo.cross(torqueArm,vo.mul(normal,force[0]))
+                    totalTorque = vo.add(totalTorque,torque)  
+                #timeSpentQueryingModel = time.time()- startTime
+                #print('Time spent querying point model',timeSpentQueryingModel)
+                
+                predictedForces.append(totalForce)
+                predictedTorques.append(totalTorque)
             else:
                 predictedForces.append(0)
+                predictedTorques.append(0)
             
             if OPEN3DVIS:
                 open3dPcd2 = PointCloud()
@@ -240,8 +260,8 @@ def predict_circle(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,disc
                 open3dPcd2.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
                 open3dPcd2.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
                 draw_geometries([open3dCircularPcd,open3dPcd2])
-            #print originalNominalD
-            #print nominalD,actualD
+
         predictedForcesAll.append(predictedForces)
-    return predictedForcesAll
+        predictedTorquesAll.append(predictedTorques)
+    return predictedForcesAll,predictedTorquesAll
 
