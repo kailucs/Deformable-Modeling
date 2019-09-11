@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
 from data_loader import *
+import time
+from sklearn.metrics import mean_squared_error
+import math
 from scipy import spatial
 from copy import deepcopy
 from klampt.math import se3,so3 
 import matplotlib.pyplot as plt
-import math
-import time
 from open3d import *
 
 def invKernel(p1,p2,param):
@@ -55,13 +55,13 @@ def create_sphere(radius,center,N):
         
     return surface_points 
 
-def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_iter,queryDList,model,offset,deformableCenter,rigidCenter,diameter):
+def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,model,offset,deformableCenter,rigidCenter,diameter,OPEN3DVIS = False):
     DEBUGPROJECTEDPTS = False
     DEBUGDISPLACEDPTS = False
-    OPEN3DVIS = False
+    #OPEN3DVIS = False
     #create a pcd in open3D
     #if OPEN3DVIS:
-    if True:
+    if OPEN3DVIS:
         open3dPcd = PointCloud()
         xyz = []
         rgb = []
@@ -90,7 +90,7 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
         pt = vo.add(pt,rigidCenter)
         tmp = vo.sub(pt,rigidCenter)
         tmp = vo.div(tmp,vo.norm(tmp))
-        if vo.dot(tmp,approachVector) > -0.2:
+        if vo.dot(tmp,approachVector) > 0.1:
             projectedPt = vo.sub(pt,vo.mul(approachVector,vo.dot(vo.sub(pt,rigidCenter),approachVector))) ##world frame
             projectedPt2D = vo.sub(projectedPt,rigidCenter) #world frame
             projectedPt2DinLocal = [vo.dot(projectedPt2D,localXinW),vo.dot(projectedPt2D,localYinW)]
@@ -101,7 +101,7 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
 
     ######## visualize in open3D for debugging ########
     #if OPEN3DVIS:
-    if True:
+    if OPEN3DVIS:
         open3dCircularPcd = PointCloud()
         xyz = []
         rgb = []
@@ -185,7 +185,7 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
             open3dPcd1.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
             draw_geometries([open3dCircularPcd,open3dPcd1])
 
-        originalNominalD = deepcopy(nominalD)
+        #originalNominalD = deepcopy(nominalD)
         #print('Deformed Surface Points',surfacePts)
         #####Calculate actual displacements
         NofSurfacePts = len(surfacePts)
@@ -218,7 +218,8 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
             for i in range(len(surfacePts)):
                 queryPt = surfacePts[i][0:3] + [actualD[i]]
                 queryPt = np.array(queryPt,ndmin=2)
-                queryPt = normalize_points(queryPt,offset[0:3],offset[3])
+                #queryPt = normalize_points(queryPt,[offset[0:3]],offset[3])
+                queryPt = normalize_points(queryPt,[[0,0,0]],offset[3])
                 force = model.predict(queryPt)
                 totalForce = totalForce + force[0]
                 #torqueArm = vo.sub(rigidPtsInContact[i],torqueCenter)
@@ -228,5 +229,164 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
             #timeSpentQueryingModel = time.time()- startTime
             #print('Time spent querying point model',timeSpentQueryingModel)
         
-    return totalForce
+        return totalForce
+    return 0
 
+
+#MODE = 1 #run simulation
+MODE = 2 #plot
+
+
+
+startTime = time.time()
+exp_N = '1'
+################## Planning problem for sphere ######################
+exp_path='../data_final/exp_' + exp_N + '/'
+exp_path_2 = '../data_final/exp_' + exp_N + '_debiased/'
+#load visual model
+pcd = load_pcd(exp_path_2+'originalPcd.txt',pcdtype='return_lines')
+#pcd = np.array(pcd)
+probedPcd = load_pcd(exp_path+'probePcd.txt',pcdtype='return_lines')
+points = np.array(pcd)
+##calculate the range
+max_range = max([ (np.max(points[:,0])-np.min(points[:,0])) , 
+                (np.max(points[:,1])-np.min(points[:,1])) , 
+                (np.max(points[:,2])-np.min(points[:,2])) ])
+p_min = []
+p_max = []
+for i in range(3):
+    p_min.append(np.min(points[:,i]))
+    p_max.append(np.max(points[:,i]))
+
+###shift the pcd..
+pcd_shifted = []
+for pt in pcd:
+    pcd_shifted.append(vo.sub(pt[0:3],p_min)+pt[3:9])
+
+probedPcd_shifted = []
+for pt in probedPcd:
+    probedPcd_shifted.append(vo.sub(pt[0:3],p_min)+pt[3:9])
+
+##load point model
+model_path = '../data_final/exp_' + exp_N +'_debiased/models/model_pt10.pkl'
+model = load_model(model_path)
+offset = p_min + [max_range]
+print('Data Loaded in',time.time()-startTime,'seconds')
+
+
+
+
+#rigid object paramters
+diameter = 0.05 
+
+if MODE == 1:
+
+
+    #simulation parameter
+    param = 0.03 # in meters
+    discretization = 0.003 # in meters
+    rigidSurfacePtsAll = create_sphere(diameter/2.0,[0,0,0],200)
+
+    # search x-y grid
+    gridDiscretization = 0.005
+    gridBoundX = [diameter/2.0 , p_max[0]-p_min[0] - diameter/2.0]
+    gridBoundY = [diameter/2.0 , p_max[1]-p_min[1] - diameter/2.0]
+    NX = round((gridBoundX[1] - gridBoundX[0])/gridDiscretization)
+    NY = round((gridBoundY[1] - gridBoundY[0])/gridDiscretization)
+    gridPtsX = np.linspace(gridBoundX[0],gridBoundX[1],int(NX))
+    gridPtsY = np.linspace(gridBoundY[0],gridBoundY[1],int(NY))
+
+    searchStartZ = p_max[2] - p_min[2] + diameter/2.0 + 0.001
+    deformableCenter = [(gridBoundX[0]+gridBoundX[1])/2.0,(gridBoundY[0]+gridBoundY[1])/2.0,0]
+    forceThreshold = 2 
+    searchDiscretization = 0.001
+    minZs = []
+
+    for x in gridPtsX:
+        for y in gridPtsY:
+            forceMagnitude = 0
+            z = searchStartZ
+            while(forceMagnitude < forceThreshold):
+                rigidCenter = [x,y,z]
+                print(rigidCenter)
+                if z >= diameter/2.0:
+                    force = predict_sphere(pcd_shifted,probedPcd_shifted,rigidSurfacePtsAll,param,model,offset,deformableCenter,rigidCenter,diameter,True)
+                    z = z - searchDiscretization
+                    forceMagnitude = math.fabs(force)
+                    if forceMagnitude > forceThreshold:
+                        minZs.append(vo.add(rigidCenter,[0,0,searchDiscretization]))
+                        break
+                else:
+                    minZs.append[x,y,diameter/2.0]
+                    break    
+                exit()
+
+if MODE == 2:
+    open3dPcd = PointCloud()
+    xyz = []
+    rgb = []
+    for ele in pcd_shifted:
+        xyz.append(ele[0:3])
+        rgb.append(ele[3:6]) 
+    open3dPcd.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
+    open3dPcd.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
+    rigidCenter = [0.1,0.1,0.3]
+    mesh_sphere = geometry.create_mesh_sphere(radius=diameter/2.0, resolution=30)
+    sphere_transform = np.asarray(
+                [[1, 0, 0,  rigidCenter[0]],
+                [0, 1, 0,  rigidCenter[1]],
+                [0, 0, 1, rigidCenter[2]],
+                [0.0, 0.0, 0.0, 1.0]])
+    mesh_sphere.transform(sphere_transform)
+    mesh_sphere.paint_uniform_color([235.0/255.0, 62.0/255.0, 14.0/255.0])
+
+    #create box
+    wallThickness = 0.005
+    wallColor = [165.0/255.0, 111.0/255.0, 227.0/255.0]
+    wallHeight = 0.15
+    mesh_box_bottom = geometry.create_mesh_box(p_max[0]-p_min[0],p_max[1]-p_min[1],wallThickness) #x,y,z
+    mesh_box_bottom.paint_uniform_color(wallColor)
+    transform = np.asarray(
+                [[1, 0, 0,  0],
+                [0, 1, 0,  0],
+                [0, 0, 1, -wallThickness],
+                [0.0, 0.0, 0.0, 1.0]])
+    mesh_box_bottom.transform(transform)    
+
+    mesh_box_left = geometry.create_mesh_box(p_max[0]-p_min[0]+2*wallThickness,wallThickness,wallHeight) #x,y,z
+    mesh_box_left.paint_uniform_color(wallColor)
+    transform = np.asarray(
+                [[1, 0, 0,  -wallThickness],
+                [0, 1, 0,  -wallThickness],
+                [0, 0, 1, 0],
+                [0.0, 0.0, 0.0, 1.0]])
+    mesh_box_left.transform(transform) 
+    
+    mesh_box_right = geometry.create_mesh_box(p_max[0]-p_min[0]+2*wallThickness,wallThickness,wallHeight) #x,y,z
+    mesh_box_right.paint_uniform_color(wallColor)
+    transform = np.asarray(
+                [[1, 0, 0,  -wallThickness],
+                [0, 1, 0,  p_max[1]-p_min[1]],
+                [0, 0, 1, 0],
+                [0.0, 0.0, 0.0, 1.0]])
+    mesh_box_right.transform(transform)
+
+    mesh_box_front= geometry.create_mesh_box(wallThickness,p_max[1]-p_min[1],wallHeight) #x,y,z
+    mesh_box_front.paint_uniform_color(wallColor)
+    transform = np.asarray(
+                [[1, 0, 0,  p_max[0]-p_min[0]],
+                [0, 1, 0,  0],
+                [0, 0, 1, 0],
+                [0.0, 0.0, 0.0, 1.0]])
+    mesh_box_front.transform(transform)  
+
+    mesh_box_back= geometry.create_mesh_box(wallThickness,p_max[1]-p_min[1],wallHeight) #x,y,z
+    mesh_box_back.paint_uniform_color(wallColor)
+    transform = np.asarray(
+                [[1, 0, 0,  -wallThickness],
+                [0, 1, 0,  0],
+                [0, 0, 1, 0],
+                [0.0, 0.0, 0.0, 1.0]])
+    mesh_box_back.transform(transform) 
+
+    open3d.visualization.draw_geometries([open3dPcd,mesh_sphere,mesh_box_bottom,mesh_box_left,mesh_box_right,mesh_box_front,mesh_box_back])

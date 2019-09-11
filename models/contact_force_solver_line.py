@@ -2,6 +2,7 @@ from data_loader import *
 from scipy import spatial
 from copy import deepcopy
 import time
+from open3d import *
 def invKernel(p1,p2,param):
     r = vo.norm(vo.sub(p1,p2))
     return param/(param+r)
@@ -15,6 +16,18 @@ def linearKernel(p1,p2,param):
 def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discretization,num_iter,queryDList,model,offset):
     DEBUGPROJECTEDPTS = False
     DEBUGDISPLACEDPTS = False
+    OPEN3DVIS = False
+    #create a pcd in open3D
+    if OPEN3DVIS:
+        open3dPcd = PointCloud()
+        xyz = []
+        rgb = []
+        for ele in pcd:
+            xyz.append(ele[0:3])
+            rgb.append(ele[3:6])
+        open3dPcd.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
+        open3dPcd.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
+
     predictedForcesAll = []
     predictedTorquesAll = []
     for pointNumber in num_iter:
@@ -60,13 +73,14 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
             #We might end up having duplicated pts...
             #We should make sure that the discretization is not too fine..
             #or should average a few neighbors
-            surfacePt = [0]*10
-            for j in range(NofN):
-                surfacePt = vo.add(surfacePt,projectedPcd[Idx[j]][0:10])
-            surfacePt = vo.div(surfacePt,NofN)
-            surfacePtsAll.append(surfacePt) #position in the global frame..
+            if d[0] < 0.003:
+                surfacePt = [0]*10
+                for j in range(NofN):
+                    surfacePt = vo.add(surfacePt,projectedPcd[Idx[j]][0:10])
+                surfacePt = vo.div(surfacePt,NofN)
+                surfacePtsAll.append(surfacePt) #position in the global frame..
         
-        
+        N = len(surfacePtsAll)
         ############# Go through a list of displacements
         totalFinNList = []
         #for queryD = -0.003:0.001:0.014
@@ -91,6 +105,28 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
                     rigidPtsInContact.append(linePt)
                     nominalD.append(nominalDisp)
             originalNominalD = deepcopy(nominalD)
+
+
+            if OPEN3DVIS:
+
+                open3dRigidPcd = PointCloud()
+                xyz = []
+                rgb = []
+                for ele in rigidPtsInContact:
+                    xyz.append(ele[0:3])
+                    rgb.append([1,0,0])
+                open3dRigidPcd.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
+                open3dRigidPcd.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
+
+                open3dDisplacedPcd = PointCloud()
+                xyz = []
+                rgb = []
+                for ele in surfacePts:
+                    xyz.append(ele[0:3])
+                    rgb.append([0,0,1])
+                open3dDisplacedPcd.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
+                open3dDisplacedPcd.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
+                draw_geometries([open3dPcd,open3dDisplacedPcd,open3dRigidPcd])
             #print('Deformed Surface Points',surfacePts)
             #print('Calculating Actual D....')
             #####Calculate actual displacements
@@ -124,15 +160,21 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
                 #predictedTorques.append(totalTorque)
                 #print("actual displacement:",actualD)
                 #startTime = time.time()
+                queryPtsBeforeNormalization = []
                 for i in range(len(surfacePts)):
                     queryPt = surfacePts[i][0:3] + [actualD[i]]
-                    queryPt = np.array(queryPt,ndmin=2)
-                    queryPt = normalize_points(queryPt,offset[0:3],offset[3])
-                    force = model.predict(queryPt)
-                    totalForce = totalForce + force[0]
+                    queryPtsBeforeNormalization.append(queryPt)
+                    #queryPts.append(queryPt)
+                    
+                queryPts = normalize_points(np.array(queryPtsBeforeNormalization),offset[0:3],offset[3])    
+                forces = model.predict(queryPts)
+                #print(forces)
+                for i in range(len(surfacePts)): 
+                    force = forces[i]
+                    totalForce = totalForce + force
                     torqueArm = vo.sub(rigidPtsInContact[i],torqueCenter)
                     normal = surfacePts[i][6:9]
-                    torque = vo.cross(torqueArm,vo.mul(normal,force[0]))
+                    torque = vo.cross(torqueArm,vo.mul(normal,force))
                     totalTorque = totalTorque + vo.dot(torque,lineTorqueAxis)  
                 #timeSpentQueryingModel = time.time()- startTime
                 #print('Time spent querying point model',timeSpentQueryingModel)
