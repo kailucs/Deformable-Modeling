@@ -149,7 +149,7 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
             #We might end up having duplicated pts...
             #We should make sure that the discretization is not too fine..
             #or should average a few neighbors
-            if d[0] < 0.003:
+            if d[0] < 0.0025:
                 surfacePt = [0]*10
                 for j in range(NofN):
                     surfacePt = vo.add(surfacePt,projectedPcdinW[Idx[j]][0:10])
@@ -232,38 +232,32 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
                 #predictedTorques.append(totalTorque)
                 #print("actual displacement:",actualD)
                 #startTime = time.time()
+
+                Ns = len(surfacePts)
                 queryPtsBeforeNormalization = []
-                for i in range(len(surfacePts)):
-                    queryPt = surfacePts[i][0:3] + [actualD[i]]
+                for i in range(Ns):
+                    queryPt = surfacePts[i][0:3] + [nominalD[i]-actualD[i]]
                     queryPtsBeforeNormalization.append(queryPt)
                     #queryPts.append(queryPt)
+                for i in range(Ns):
+                    queryPt = surfacePts[i][0:3] + [nominalD[i]]
+                    queryPtsBeforeNormalization.append(queryPt)
+
                     
                 queryPts = normalize_points(np.array(queryPtsBeforeNormalization),offset[0:3],offset[3])    
                 forces = model.predict(queryPts)
                 #print(forces)
-                for i in range(len(surfacePts)): 
-                    force = forces[i]
+                for i in range(Ns): 
+                    force = forces[i+Ns]-forces[i]
                     totalForce = totalForce + force
                     torqueArm = vo.sub(rigidPtsInContact[i],torqueCenter)
                     normal = surfacePts[i][6:9]
                     torque = vo.cross(torqueArm,vo.mul(normal,force[0]))
                     totalTorque = vo.add(totalTorque,torque)   
 
-                '''
-                for i in range(len(surfacePts)):
-                    queryPt = surfacePts[i][0:3] + [actualD[i]]
-                    queryPt = np.array(queryPt,ndmin=2)
-                    queryPt = normalize_points(queryPt,offset[0:3],offset[3])
-                    force = model.predict(queryPt)
-                    totalForce = totalForce + force[0]
-                    torqueArm = vo.sub(rigidPtsInContact[i],torqueCenter)
-                    normal = surfacePts[i][6:9]
-                    torque = vo.cross(torqueArm,vo.mul(normal,force[0]))
-                    totalTorque = vo.add(totalTorque,torque)  
-                '''
+            
                 #timeSpentQueryingModel = time.time()- startTime
                 #print('Time spent querying point model',timeSpentQueryingModel)
-                
                 predictedForces.append(totalForce)
                 predictedTorques.append(totalTorque)
             else:

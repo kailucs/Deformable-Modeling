@@ -153,6 +153,10 @@ def load_data(exp_path, probe_type='point', Xtype='loc',ytype='f',logfile=None):
             Y1_i = np.array(force,ndmin=2)
             Y2_i = np.array(torque,ndmin=2)
             Y_i=np.hstack((Y1_i,Y2_i))
+        elif ytype =='fnt':
+            Y1_i = np.array(force_normal,ndmin=2).T
+            Y2_i = np.array(torque,ndmin=2)
+            Y_i=np.hstack((Y1_i,Y2_i))
         Y.append(Y_i)
     return X,Y
 
