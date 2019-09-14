@@ -69,7 +69,6 @@ def load_data(exp_path, probe_type='point', Xtype='loc',ytype='f',logfile=None):
         force=[]
         force_normal=[]
         displacement=[]
-        theta=[]
 
         dataFile=open(force_path,'r')
         for line in dataFile:
@@ -86,7 +85,6 @@ def load_data(exp_path, probe_type='point', Xtype='loc',ytype='f',logfile=None):
             torque=[]
             torque_normal=[]
             displacement=[]
-            theta=[]
 
             dataFile=open(torque_path,'r')
             for line in dataFile:
@@ -102,7 +100,6 @@ def load_data(exp_path, probe_type='point', Xtype='loc',ytype='f',logfile=None):
             torque_path = exp_path+probe_type+'/torque_'+str(i)+'.txt'
             torque=[]
             displacement=[]
-            theta=[]
 
             dataFile=open(torque_path,'r')
             for line in dataFile:
@@ -132,6 +129,11 @@ def load_data(exp_path, probe_type='point', Xtype='loc',ytype='f',logfile=None):
             X_i = np.hstack((np.tile(points[i],(num_dis,1)), 
                                 np.tile(colors[i],(num_dis,1)), 
                                 np.tile(curvatures[i],(num_dis,1)), 
+                                displacement))
+            
+        elif Xtype == 'loc_theta':
+            X_i = np.hstack((np.tile(points[i],(num_dis,1)), 
+                                np.tile(theta[i],(num_dis,1)), 
                                 displacement))
         X.append(X_i)
 

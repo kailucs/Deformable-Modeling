@@ -40,8 +40,7 @@ def create_sphere(radius,center,N):
             pt = [math.sin(theta)*math.cos(phi),math.sin(theta)*math.sin(phi),math.cos(theta)]
             surface_points.append(vo.add(vo.mul(pt,radius),center))
             Ncount = Ncount + 1
-    print('Ncount:',Ncount)
-    ##display for debugging    
+    print('Ncount:',Ncount) 
     if OPEN3DVIS:
         open3dPcd = PointCloud()
         xyz = []
@@ -60,8 +59,8 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
     DEBUGDISPLACEDPTS = False
     OPEN3DVIS = False
     #create a pcd in open3D
-    #if OPEN3DVIS:
-    if True:
+    if OPEN3DVIS:
+    #if False:
         open3dPcd = PointCloud()
         xyz = []
         rgb = []
@@ -100,8 +99,8 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
     #############Now Start predicting force#####################
 
     ######## visualize in open3D for debugging ########
-    #if OPEN3DVIS:
-    if True:
+    if OPEN3DVIS:
+    #if True:
         open3dCircularPcd = PointCloud()
         xyz = []
         rgb = []
@@ -142,7 +141,7 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
     #print("number of projected deformable pts:",len(projectedPcdinW))
     ###############Find the corresponding points on the deformable object############
     surfacePtsAll = []# %These are the surface pts that will be displaced.
-
+    rigidPointsFinal = []
     if len(projectedPcdinW) > 0:
         #Create a KDTree for searching
         projectedPcdTree = spatial.KDTree(projectedPcdLocal)
@@ -157,15 +156,17 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
             if d[0] < 0.0025:
                 surfacePt = [0]*10
                 for j in range(NofN):
+                    
                     surfacePt = vo.add(surfacePt,projectedPcdinW[Idx[j]][0:10])
                 surfacePt = vo.div(surfacePt,NofN)
                 surfacePtsAll.append(surfacePt)        
-    
+                rigidPointsFinal.append(rigidPointsinW[i][0:3])
+
         surfacePts = [] #These are the surface pts that will be displaced...
         nominalD = [] #Column Vector..
         rigidPtsInContact = []
-        for i in range(len(rigidPointsinW)):
-            rigidPt = rigidPointsinW[i]
+        for i in range(len(rigidPointsFinal)):
+            rigidPt = rigidPointsFinal[i]
             surfacePt = surfacePtsAll[i][0:3]
             normal = surfacePtsAll[i][6:9]
             nominalDisp = -vo.dot(vo.sub(rigidPt,surfacePt),normal)
@@ -228,7 +229,10 @@ def predict_sphere(pcd,probedPcd,rigidSurfacePtsAll,param,discretization,num_ite
             #print(forces)
             for i in range(Ns): 
                 force = forces[i+Ns]-forces[i]
+                if force < 0:
+                    force = 0
                 totalForce = totalForce + force
         
-    return totalForce
+        return totalForce
+    return 0
 

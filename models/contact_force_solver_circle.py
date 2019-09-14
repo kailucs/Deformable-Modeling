@@ -47,7 +47,7 @@ def create_circle(discretization):
 def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,queryDList,model,offset):
     DEBUGPROJECTEDPTS = False
     DEBUGDISPLACEDPTS = False
-    OPEN3DVIS = False
+    OPEN3DVIS = 0
     diameter = 0.04
     #create a pcd in open3D
     if OPEN3DVIS:
@@ -110,8 +110,8 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
         #The start point is the origin of the plane...
         projectedPcdinW = []
         projectedPcdLocal = [] 
-        #if OPEN3DVIS:
-        #    pcdThatWasProjected = []
+        if OPEN3DVIS:
+            pcdThatWasProjected = []
         for i in range(len(pcd)):
             p = pcd[i][0:3]
             projectedPt = vo.sub(p,vo.mul(circleNormal,vo.dot(vo.sub(p,center),circleNormal))) ##world origin
@@ -121,8 +121,8 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
             if vo.norm(projectedPt2DinLocal)< (diameter/2.0+0.001):
                 projectedPcdLocal.append(projectedPt2DinLocal)
                 projectedPcdinW.append(pcd[i])
-                #if OPEN3DVIS:
-                #    pcdThatWasProjected.append(p)
+                if OPEN3DVIS:
+                    pcdThatWasProjected.append(p)
 
         ######## visualize in open3D for debugging ########
         if OPEN3DVIS:
@@ -142,7 +142,8 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
         #Create a KDTree for searching
         projectedPcdTree = spatial.KDTree(projectedPcdLocal)
         #average 3 neighbors
-        NofN = 3   
+        NofN = 3 
+        rigidPointsFinal = []    
         for i in range(len(rigidPointsinW)):
             ptLocal = rigidPointsLocal[i][1:3]
             d,Idx = projectedPcdTree.query(ptLocal,k=NofN)
@@ -155,6 +156,7 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
                     surfacePt = vo.add(surfacePt,projectedPcdinW[Idx[j]][0:10])
                 surfacePt = vo.div(surfacePt,NofN)
                 surfacePtsAll.append(surfacePt)
+                rigidPointsFinal.append(rigidPointsinW[i][0:3])
 
         if OPEN3DVIS:
             open3dPcd1 = PointCloud()
@@ -170,16 +172,17 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
         ############# Go through a list of displacements
         #queryDList = [0.012]
         totalFinNList = []
-        #for queryD = -0.003:0.001:0.014        
+        #for queryD = -0.003:0.001:0.014  
+        #print(surfacePtsAll)      
         for queryD in queryDList:
-            #print 'queryD is',queryD
+            #print('queryD is',queryD)
             torqueCenter = vo.add(center,vo.mul(circleNormal,0.09-queryD))           
             ####calculate the nominal displacements                      
             surfacePts = []; #These are the surface pts that will be displaced...
             nominalD = []; #Column Vector..
             rigidPtsInContact = []
-            for i in range(len(rigidPointsinW)):
-                circlePt = vo.sub(rigidPointsinW[i],vo.mul(circleNormal,queryD))
+            for i in range(len(rigidPointsFinal)):
+                circlePt = vo.sub(rigidPointsFinal[i],vo.mul(circleNormal,queryD))
                 surfacePt = surfacePtsAll[i][0:3]
                 normal = surfacePtsAll[i][6:9]
                 nominalDisp = -vo.dot(vo.sub(circlePt,surfacePt),normal)
@@ -249,10 +252,13 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
                 #print(forces)
                 for i in range(Ns): 
                     force = forces[i+Ns]-forces[i]
+                    if force<0:
+                        force = 0
                     totalForce = totalForce + force
                     torqueArm = vo.sub(rigidPtsInContact[i],torqueCenter)
                     normal = surfacePts[i][6:9]
-                    torque = vo.cross(torqueArm,vo.mul(normal,force[0]))
+                    normal = vo.div(normal,vo.norm(normal))
+                    torque = vo.cross(torqueArm,vo.mul(normal,force))
                     totalTorque = vo.add(totalTorque,torque)   
 
             
@@ -262,7 +268,7 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
                 predictedTorques.append(totalTorque)
             else:
                 predictedForces.append(0)
-                predictedTorques.append(0)
+                predictedTorques.append([0,0,0])
             
             if OPEN3DVIS:
                 open3dPcd2 = PointCloud()
