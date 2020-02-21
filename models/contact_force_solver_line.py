@@ -19,6 +19,10 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
     DEBUGDISPLACEDPTS = False
     OPEN3DVIS = False
     #create a pcd in open3D
+    ### tweak to predict force at negative displacement...
+    
+    detectThreshold = -0.005
+
     if OPEN3DVIS:
         open3dPcd = PointCloud()
         xyz = []
@@ -102,7 +106,7 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
         #for queryD = -0.003:0.001:0.014
         for queryD in queryDList:
             #startTime2 = time.time()
-            #print(queryD)
+            #print('queryD',queryD)
             lineStart = vo.sub(lineStart0,vo.mul(lineNormal,queryD))
             lineEnd = vo.sub(lineEnd0,vo.mul(lineNormal,queryD))
             lineCenter = vo.div(vo.add(lineStart,lineEnd),2)
@@ -117,7 +121,11 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
                 surfacePt = surfacePtsAll[i][0:3]
                 normal = surfacePtsAll[i][6:9]
                 nominalDisp = -vo.dot(vo.sub(linePt,surfacePt),normal)
-                if nominalDisp > 0:
+
+                ##most recent update...
+                ##calculate force at negative displacement...
+                #if nominalDisp > 0:
+                if nominalDisp > detectThreshold:
                     surfacePts.append(surfacePtsAll[i][0:10])#position in the global frame..
                     rigidPtsInContact.append(linePt)
                     nominalD.append(nominalDisp)
@@ -153,6 +161,9 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
             #print('Calculating Actual D....')
             #####Calculate actual displacements
             NofSurfacePts = len(surfacePts)
+            surfacePts = np.array(surfacePts)
+            nominalD = np.array(nominalD)
+            rigidPtsInContact = np.array(rigidPtsInContact)
             if NofSurfacePts > 0:
                 negativeDisp = True
                 while negativeDisp:
@@ -168,14 +179,20 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
                         
                     #print('Time spent inverting matrix',time.time()- startTime)
                     #print nominalD,actualD
-                    negativeIndex = actualD < 0
+                    negativeIndex = actualD < detectThreshold
                     if np.sum(negativeIndex) > 0:
-                        actualD = actualD.tolist()
-                        surfacePts = [surfacePts[i] for i in range(len(surfacePts)) if actualD[i]>=0]
-                        nominalD = [nominalD[i] for i in range(len(nominalD)) if actualD[i]>=0]
-                        rigidPtsInContact = [rigidPtsInContact[i] for i in range(len(rigidPtsInContact)) if actualD[i]>=0]
+                        #print(len(surfacePts),len(nominalD),len(rigidPtsInContact))
+                        #actualD = actualD.tolist()
+                        #surfacePts = [surfacePts[i] for i in range(len(surfacePts)) if actualD[i]>=0]
+                        #nominalD = [nominalD[i] for i in range(len(nominalD)) if actualD[i]>=0]
+                        ####rigidPtsInContact = [rigidPtsInContact[i] for i in range(len(rigidPtsInContact)) if actualD[i]>=0]
+                        positiveIndex = actualD >= detectThreshold
+                        surfacePts = surfacePts[positiveIndex]
+                        nominalD = nominalD[positiveIndex]
+                        rigidPtsInContact = rigidPtsInContact[positiveIndex]
                     else:
                         negativeDisp = False
+                    ##most recent change, enable negative distnace force calculation
                 
                 ##########calculate force and torque
                 totalForce = 0
@@ -187,11 +204,11 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
                 Ns = len(surfacePts)
                 queryPtsBeforeNormalization = []
                 for i in range(Ns):
-                    queryPt = surfacePts[i][0:3] + [nominalD[i]-actualD[i]]
+                    queryPt = np.hstack((surfacePts[i][0:3],[nominalD[i]-actualD[i]]))
                     queryPtsBeforeNormalization.append(queryPt)
                     #queryPts.append(queryPt)
                 for i in range(Ns):
-                    queryPt = surfacePts[i][0:3] + [nominalD[i]]
+                    queryPt = np.hstack((surfacePts[i][0:3],[nominalD[i]]))
                     queryPtsBeforeNormalization.append(queryPt)
 
                     
@@ -200,15 +217,32 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
                 #print(queryPts)
                 #print(forces)
                 for i in range(Ns): 
+
+                    ## should use forceVector dot approach vector... but probably very close to 1 anyways...
                     force = forces[i+Ns]-forces[i]
                     if force<0:
                         force = 0
                     totalForce = totalForce + force
                     torqueArm = vo.sub(rigidPtsInContact[i],torqueCenter)
-                    normal = surfacePts[i][6:9]
-                    normal = vo.div(normal,vo.norm(normal))
-                    torque = vo.cross(torqueArm,vo.mul(normal,force))
-                    totalTorque = totalTorque + vo.dot(torque,lineTorqueAxis)  
+                    
+                    ##### most recent updates
+                    #### the force direction should be the vector going between the rigid point and deformable points...
+                    #normal = surfacePts[i][6:9]
+                    #normal = vo.div(normal,vo.norm(normal))
+                    #forceVector = normal
+                    forceVector = vo.sub(surfacePts[i][0:3],rigidPtsInContact[i][0:3]) 
+                    forceVector = vo.div(forceVector,vo.norm(forceVector))
+                    if forceVector[2] < 0:  ## deal with the case of calculate force at negative displacement....
+                        forceVector = vo.mul(forceVector,-1)
+
+                    #print(forceVector,normal)
+                    torque = vo.cross(torqueArm,vo.mul(forceVector,force))
+
+                    ###########torque axis is different from the groudn truth..... negate..
+                    #    
+                    ###################################################################### 
+                    #totalTorque = totalTorque + vo.dot(torque,lineTorqueAxis)  
+                    totalTorque = totalTorque - vo.dot(torque,lineTorqueAxis) 
                 #timeSpentQueryingModel = time.time()- startTime
                 #print('Time spent querying point model',timeSpentQueryingModel)
                 

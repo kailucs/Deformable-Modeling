@@ -49,6 +49,9 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
     DEBUGDISPLACEDPTS = False
     OPEN3DVIS = 0
     diameter = 0.04
+    detectThreshold = 0.0
+
+
     #create a pcd in open3D
     if OPEN3DVIS:
         open3dPcd = PointCloud()
@@ -186,7 +189,7 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
                 surfacePt = surfacePtsAll[i][0:3]
                 normal = surfacePtsAll[i][6:9]
                 nominalDisp = -vo.dot(vo.sub(circlePt,surfacePt),normal)
-                if nominalDisp > 0:
+                if nominalDisp > detectThreshold:
                     surfacePts.append(surfacePtsAll[i][0:10])#position in the global frame..
                     nominalD.append(nominalDisp)
                     rigidPtsInContact.append(circlePt)
@@ -206,7 +209,10 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
             #print('Deformed Surface Points',surfacePts)
             #####Calculate actual displacements
             NofSurfacePts = len(surfacePts)
-            originalSurfacePts = deepcopy(surfacePts)
+            #originalSurfacePts = deepcopy(surfacePts)
+            surfacePts = np.array(surfacePts)
+            nominalD = np.array(nominalD)
+            rigidPtsInContact = np.array(rigidPtsInContact)
             if NofSurfacePts > 0:
                 negativeDisp = True
                 while negativeDisp:
@@ -221,10 +227,10 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
                     negativeIndex = actualD < 0
                     if np.sum(negativeIndex) > 0:
                         #print(len(surfacePts),len(nominalD),len(rigidPtsInContact))
-                        actualD = actualD.tolist()
-                        surfacePts = [surfacePts[i] for i in range(len(surfacePts)) if actualD[i]>=0]
-                        nominalD = [nominalD[i] for i in range(len(nominalD)) if actualD[i]>=0]
-                        rigidPtsInContact = [rigidPtsInContact[i] for i in range(len(rigidPtsInContact)) if actualD[i]>=0]
+                        positiveIndex = actualD >= detectThreshold
+                        surfacePts = surfacePts[positiveIndex]
+                        nominalD = nominalD[positiveIndex]
+                        rigidPtsInContact = rigidPtsInContact[positiveIndex]
                     else:
                         negativeDisp = False
 
@@ -239,11 +245,11 @@ def predict_circle(pcd,probedPcd,rigidPointsLocal,param,discretization,num_iter,
                 Ns = len(surfacePts)
                 queryPtsBeforeNormalization = []
                 for i in range(Ns):
-                    queryPt = surfacePts[i][0:3] + [nominalD[i]-actualD[i]]
+                    queryPt = np.hstack((surfacePts[i][0:3],[nominalD[i]-actualD[i]]))
                     queryPtsBeforeNormalization.append(queryPt)
                     #queryPts.append(queryPt)
                 for i in range(Ns):
-                    queryPt = surfacePts[i][0:3] + [nominalD[i]]
+                    queryPt = np.hstack((surfacePts[i][0:3],[nominalD[i]]))
                     queryPtsBeforeNormalization.append(queryPt)
 
                     

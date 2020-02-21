@@ -334,6 +334,10 @@ diameter = 0.04
 
 
 if MODE == 1:
+
+
+    
+    '''
     #simulation parameter
     param = 0.03 # in meters
     discretization = 0.003 # in meters
@@ -406,23 +410,7 @@ if MODE == 1:
                 else:
                     minZs.append([x,y,diameter/2.0])
                     break
-            ## report the average
-            #NofFrames = len(speedTestTimes)
-            #total = [0,0,0,0]
-            #print('sppedTestTimes',speedTestTimes)
-            #for t in speedTestTimes:
-            #    total = vo.add(t,total)
-            #averageTime = vo.div(total,NofFrames)
-            #print('averageTime',averageTime)
-            #print('minZs',minZs[counter][2])
-            #exit()
-            #counter = counter + 1            
-            #exit()        
-    #with open('output.txt', 'w') as f:
-    #    for  line in minZs:
-    #        f.write(str(line[0]) + ' ')
-    #        f.write(str(line[1]) + ' ')
-    #        f.write(str(line[2]) + '\n')
+
     with open('speedTestOutput1.txt', 'w') as f:
         for  alist in speedTestTimesDifferentNumberContactsPoints1:
             for ele in alist:
@@ -443,7 +431,7 @@ if MODE == 1:
             for ele in alist:
                 f.write(str(ele) + ' ')
             f.write('\n')
-    
+    '''
 
 if MODE == 2:
     open3dPcd = PointCloud()

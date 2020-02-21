@@ -15,25 +15,29 @@ exp_N = '3'
 exp_path='../data_final/exp_' + exp_N + '/'
 exp_path_2 = '../data_final/exp_' + exp_N + '_debiased/'
 #load visual model
-pcd = data_loader.load_pcd(exp_path_2+'originalPcd.txt',pcdtype='return_lines')
-open3dPcd = open3d.PointCloud()
-xyz = []
-rgb = []
-for ele in pcd:
-    xyz.append(ele[0:3])
-    rgb.append(ele[3:6])
-open3dPcd.points = open3d.Vector3dVector(np.asarray(xyz,dtype=np.float32))
-open3dPcd.colors = open3d.Vector3dVector(np.asarray(rgb,dtype=np.float32))
-open3d.io.write_point_cloud("testPcd.pcd", open3dPcd)
+#pcd = data_loader.load_pcd(exp_path_2+'originalPcd.txt',pcdtype='return_lines')
+#open3dPcd = open3d.PointCloud()
+#xyz = []
+#rgb = []
+#normals = []
+#for ele in pcd:
+#    xyz.append(ele[0:3])
+#    rgb.append(ele[3:6])
+#    normals.append(ele[6:9])
+#open3dPcd.points = open3d.Vector3dVector(np.asarray(xyz,dtype=np.float32))
+#open3dPcd.colors = open3d.Vector3dVector(np.asarray(rgb,dtype=np.float32))
+#open3dPcd.normals = open3d.Vector3dVector(np.asarray(normals,dtype=np.float32))
+#open3d.io.write_point_cloud("testPcd.pcd", open3dPcd)
 
-a = open3d.io.read_point_cloud("testPcd.pcd")
-open3d.visualization.draw_geometries(
-        [a])
+#a = open3d.io.read_point_cloud("testPcd.pcd")
+#open3d.visualization.draw_geometries(
+#        [a])
 
-geom=Geometry3D()
-geom.loadFile("testPcd.pcd")
-#klamptPcd = loader.loadGeometry3D("testPcd.pcd")
-#pointCloudObject = klamptPcd.get
+#geom=Geometry3D()
+#geom.loadFile("testPcd.pcd")
+
+klamptPcd = loader.loadGeometry3D("testPcd.pcd")
+#ointCloudObject = klamptPcd.get
 #properties = []
 #for ele in pc:
 #
@@ -47,6 +51,6 @@ geom.loadFile("testPcd.pcd")
 #vis.add("world",world)
 #geom = Geometry3D(pcd)
 
-vis.add('PointCloud',geom)
-#vis.hideLabel('PointCloud')
+vis.add('PointCloud',klamptPcd)
+vis.hideLabel('PointCloud')
 vis.run()

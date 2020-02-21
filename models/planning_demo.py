@@ -562,6 +562,11 @@ if MODE == 4:
     avgPointQueryTimes = []
     avgActualDTimes = []
 
+    totalTime = 0
+    totalCollision = 0
+    totalPoint = 0
+    totalActualD = 0
+    totalRuns = 0
     with open('speedTestOutput1.txt','r') as f:
         output1 = []
         for line in f:
@@ -601,18 +606,27 @@ if MODE == 4:
     for line in output1:
         if len(line) > 1:
             avgTotalTimes.append(sum(line) / float(len(line)-1) )
+            totalTime = totalTime + sum(line)
+            totalRuns = totalRuns + len(line)-1
     for line in output2:
         if len(line) > 1:
             avgCollisionTimes.append(sum(line) / float(len(line)-1) )
+            totalCollision = totalCollision + sum(line)
     for line in output3:
         if len(line) >1:
             avgPointQueryTimes.append(sum(line) / float(len(line)-1) )
+            totalPoint = totalPoint + sum(line)
     for line in output4:
         if len(line) > 1:
             avgActualDTimes.append(sum(line) / float(len(line)-1) )
+            totalActualD = totalActualD + sum(line)
     
+
+    #######
     print(NofContactPoints)
     print(avgActualDTimes)
+    #
     #plt.plot(NofContactPoints,avgPointQueryTimes)
     plt.plot(NofContactPoints,avgActualDTimes)
     plt.show()
+    #print(totalTime/float(totalRuns),totalCollision/float(totalRuns),totalPoint/float(totalRuns),totalActualD/float(totalRuns))

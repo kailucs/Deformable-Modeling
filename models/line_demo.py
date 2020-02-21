@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error
 import math
 from copy import deepcopy
-from openmesh import *
+#from openmesh import *
 import colorsys
 params = [0.03,0.15,0.02,0.01,0.008]
 
@@ -32,7 +32,7 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
     DEBUGPROJECTEDPTS = False
     DEBUGDISPLACEDPTS = False
     OPEN3DVIS = False
-    FIRSTPIC = False
+    FIRSTPIC = 1
 
 
 
@@ -134,7 +134,8 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
         totalFinNList = []
         #for queryD = -0.003:0.001:0.014
         if FIRSTPIC:
-            queryDList = [-0.095]
+            pass
+            queryDList = [-0.09]
 
         for queryD in queryDList:
             #startTime2 = time.time()
@@ -220,6 +221,7 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
                     actualD =  np.dot(np.linalg.inv(K),nominalD)
                     #print('Time spent inverting matrix',time.time()- startTime)
                     #print nominalD,actualD
+                    
                     negativeIndex = actualD < 0
                     if np.sum(negativeIndex) > 0:
                         actualD = actualD.tolist()
@@ -343,7 +345,7 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
         predictedTorquesAll.append(predictedTorques)
     return predictedForcesAll,predictedTorquesAll
 
-exp_N = 3
+exp_N = 1
 param = params[exp_N-1]
 exp_N = str(exp_N)
 startTime = time.time()
@@ -411,9 +413,9 @@ ytestForce = []
 ytestTorque = []
 startTime = time.time()
 #for i in range(len(lineStarts)):
-print 
+#print 
 #for i in np.arange(130,160,1):
-for i in [135]:
+for i in [110]:
     print(i)
     if exp_N == '2' and i==285: ## pcd have holes and we end up having duplicated points
         pass#print('point 361 skipped...')
@@ -426,10 +428,12 @@ for i in [135]:
         num_iter = [i]
         tmp1 = X[i][::dilution]
         tmp2 = Y[i][::dilution]
-        queryDList = [-0.008,-0.002,0,0.003,0.005,0.007,0.009] 
+        #queryDList = [-0.008,-0.002,0,0.003,0.005,0.007,0.009, 0.012] 
+        queryDList = [-0.008,-0.002,0,0.003,0.005] 
         #print(tmp1[:,7])
         if exp_N == '4':
             predictedForces,predictedTorques = predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd_cut,param,discretization,num_iter,queryDList,model,offset,p_min,p_max)           
         else:
             predictedForces,predictedTorques = predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discretization,num_iter,queryDList,model,offset,p_min,p_max)
         
+        print(predictedForces)
