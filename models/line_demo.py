@@ -2,6 +2,7 @@ from data_loader import *
 from scipy import spatial
 from copy import deepcopy
 import time
+import open3d
 from open3d import *
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error
@@ -10,7 +11,7 @@ from copy import deepcopy
 #from openmesh import *
 import colorsys
 params = [0.03,0.15,0.02,0.01,0.008]
-
+print('flag0')
 def invKernel(p1,p2,param):
     r = vo.norm(vo.sub(p1,p2))
     return param/(param+r)
@@ -37,7 +38,7 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
 
 
     #create a pcd in open3D
-    equilibriumPcd = PointCloud()
+    equilibriumPcd = open3d.geometry.PointCloud()
     xyz = []
     rgb = []
     normals = []
@@ -45,15 +46,15 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
         xyz.append(ele[0:3])
         rgb.append(ele[3:6])
         normals.append(ele[6:9])
-    equilibriumPcd.points = Vector3dVector(np.asarray(xyz,dtype=np.float32))
-    equilibriumPcd.colors = Vector3dVector(np.asarray(rgb,dtype=np.float32))
-    equilibriumPcd.normals = Vector3dVector(np.asarray(normals,dtype=np.float32))
-    equilibriumPcd,ind=statistical_outlier_removal(equilibriumPcd,nb_neighbors=20,std_ratio=0.75) 
-
+    equilibriumPcd.points = open3d.utility.Vector3dVector(np.asarray(xyz,dtype=np.float32))
+    equilibriumPcd.colors = open3d.utility.Vector3dVector(np.asarray(rgb,dtype=np.float32))
+    equilibriumPcd.normals = open3d.utility.Vector3dVector(np.asarray(normals,dtype=np.float32))
+    #equilibriumPcd,ind=statistical_outlier_removal(equilibriumPcd,nb_neighbors=20,std_ratio=0.75) 
+    equilibriumPcd,ind=equilibriumPcd.remove_statistical_outlier(nb_neighbors=20,std_ratio=0.75)
     ## Add a bottom..
     sideLength = 0.5
     plateCenter = [sideLength/2.0,sideLength/2.0]
-    mesh_box_bottom = geometry.create_mesh_box(sideLength,sideLength,0.005) #x,y,z
+    mesh_box_bottom = open3d.geometry.TriangleMesh.create_box(sideLength,sideLength,0.005) #x,y,z
     mesh_box_bottom.paint_uniform_color([0.38,0.38,0.38])
     transform = np.asarray(
                 [[1, 0, 0,  (p_max[0]-p_min[0])/2.0+p_min[0]-plateCenter[0]],
@@ -160,7 +161,7 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
             originalNominalD = deepcopy(nominalD)
             if FIRSTPIC:
                 ##load probe
-                probe_mesh = read_triangle_mesh('Contact_Probe_linear.ply')
+                probe_mesh = open3d.io.read_triangle_mesh('Contact_Probe_linear.ply')
                 probe_mesh.compute_vertex_normals()
                 probeCenter = deepcopy(lineCenter)
                 probeX = deepcopy(localXinW)
@@ -173,7 +174,7 @@ def predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discre
                 [0.0, 0.0, 0.0, 1.0]])
                 probe_mesh.transform(transform) 
                 probe_mesh.paint_uniform_color([0.8,0,0])
-                draw_geometries([equilibriumPcd,probe_mesh,mesh_box_bottom])
+                open3d.visualization.draw_geometries([equilibriumPcd,probe_mesh,mesh_box_bottom])
                 exit()
 
 
@@ -350,6 +351,7 @@ param = params[exp_N-1]
 exp_N = str(exp_N)
 startTime = time.time()
 
+print('flag1')
 
 ###################Load data for line probe################################################# 
 exp_path='../data_final/exp_' + exp_N + '/'
@@ -357,7 +359,7 @@ exp_path_2 = '../data_final/exp_' + exp_N + '_debiased/'
 #load line geometry data 
 lineStarts,lineEnds,lineNormals,lineTorqueAxes = cal_line_data(exp_path)
 #load line force torque data 
-X,Y = load_data(exp_path, probe_type='line', Xtype='loc_color_cur',ytype='fntn',logfile=None)
+# X,Y = load_data(exp_path, probe_type='line', Xtype='loc_color_cur',ytype='fntn',logfile=None)
 #load visual model
 pcd = load_pcd(exp_path_2+'originalPcd.txt',pcdtype='return_lines')
 points = np.array(pcd)
@@ -372,33 +374,35 @@ for i in range(3):
     p_max.append(np.max(points[:,i]))
 
 ##The shoe have 2 layers... and the pcd needs to be modified
-if exp_N == '4':
-    pcd_cut = []
-    for ele in pcd:
-        if ele[1]-p_min[1] < 0.08:
-            pass
-        elif (ele[1]-p_min[1] < 0.1) and (ele[2]-p_min[2] < 0.03):
-            pass
-        elif (ele[1]-p_min[1] < 0.1) and (ele[2]-p_min[2] < 0.08) and (ele[0]-p_min[0] > 0.03):
-            pass
-        elif (ele[1]-p_min[1] < 0.14) and (ele[2]-p_min[2] < 0.03) and (ele[0]-p_min[0] <0.02):
-            pass
-        elif (ele[2]-p_min[2] < 0.02) and (ele[0]-p_min[0] <0.03):
-            pass
-        else:
-            pcd_cut.append(deepcopy(ele))
+# if exp_N == '4':
+#     pcd_cut = []
+#     for ele in pcd:
+#         if ele[1]-p_min[1] < 0.08:
+#             pass
+#         elif (ele[1]-p_min[1] < 0.1) and (ele[2]-p_min[2] < 0.03):
+#             pass
+#         elif (ele[1]-p_min[1] < 0.1) and (ele[2]-p_min[2] < 0.08) and (ele[0]-p_min[0] > 0.03):
+#             pass
+#         elif (ele[1]-p_min[1] < 0.14) and (ele[2]-p_min[2] < 0.03) and (ele[0]-p_min[0] <0.02):
+#             pass
+#         elif (ele[2]-p_min[2] < 0.02) and (ele[0]-p_min[0] <0.03):
+#             pass
+#         else:
+#             pcd_cut.append(deepcopy(ele))
 
 
 ##load point model
-print('data loaded in',time.time()-startTime, 'seconds')
-iterator = '10' #we use model trained on 10 locations
-#model_path = '../../Kai/data_final_new/exp_' + exp_N +'_debiased/models/model_pt'+ iterator + '_id' + str(int(id))+'.pkl'
-model_path = '../data_final/exp_' + exp_N +'_debiased/models/model_pt'+ iterator + '.pkl'
-model = load_model(model_path)
-offset = p_min + [max_range]
+# print('data loaded in',time.time()-startTime, 'seconds')
+# iterator = '10' #we use model trained on 10 locations
+# #model_path = '../../Kai/data_final_new/exp_' + exp_N +'_debiased/models/model_pt'+ iterator + '_id' + str(int(id))+'.pkl'
+# model_path = '../data_final/exp_' + exp_N +'_debiased/models/model_pt'+ iterator + '.pkl'
+# model = load_model(model_path)
+# offset = p_min + [max_range]
+
+print('flag2')
 
 ##load the stl model
-probe = read_triangle_mesh("Contact_Probe_linear.ply")
+probe = open3d.io.read_triangle_mesh("Contact_Probe_linear.ply")
 probe.compute_vertex_normals()
 probe.paint_uniform_color([1,0,0])
 #draw_geometries([probe])
@@ -426,14 +430,16 @@ for i in [110]:
     else:
         #load ground truth and predict 
         num_iter = [i]
-        tmp1 = X[i][::dilution]
-        tmp2 = Y[i][::dilution]
+        # tmp1 = X[i][::dilution]
+        # tmp2 = Y[i][::dilution]
         #queryDList = [-0.008,-0.002,0,0.003,0.005,0.007,0.009, 0.012] 
         queryDList = [-0.008,-0.002,0,0.003,0.005] 
         #print(tmp1[:,7])
+        model = 0
+        offset = 0
         if exp_N == '4':
             predictedForces,predictedTorques = predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd_cut,param,discretization,num_iter,queryDList,model,offset,p_min,p_max)           
         else:
             predictedForces,predictedTorques = predict_line(lineStarts,lineEnds,lineNormals,lineTorqueAxes,pcd,param,discretization,num_iter,queryDList,model,offset,p_min,p_max)
         
-        print(predictedForces)
+        # print(predictedForces)
