@@ -195,14 +195,14 @@ for exp_N in [4,5]:
 ######################Load Data for Cylinder Probe ##################
 forceRMSE = []
 torqueRMSE = []
-for exp_N in [1]:
+for exp_N in [2]:
     param = params[exp_N-1] # in meters
     exp_N = str(exp_N)
     exp_path='../data_final/exp_' + exp_N + '/'
     exp_path_2 = '../data_final/exp_' + exp_N + '_debiased/'
-    #load visual model
+    #load visual model  #### there could be some error here........ probe_type line??
     pcd = load_pcd(exp_path_2+'originalPcd.txt',pcdtype='return_lines')
-    X,Y = load_data(exp_path, probe_type='line', Xtype='loc_color_cur',ytype='fnt',logfile=None)
+    X,Y = load_data(exp_path, probe_type='circle', Xtype='loc_color_cur',ytype='fnt',logfile=None)
     #pcd = np.array(pcd)
     probedPcd = load_pcd(exp_path+'probePcd.txt',pcdtype='return_lines')
 
@@ -233,7 +233,7 @@ for exp_N in [1]:
                 pcd_cut.append(deepcopy(ele))
 
     ##load point model
-    model_path = '../data_final/exp_' + exp_N +'_debiased/models/model_pt10.pkl'
+    model_path = '../data_final/exp_' + exp_N +'_debiased/models_expand/model_pt10.pkl'
     model = load_model(model_path)
     offset = p_min + [max_range]
 
@@ -251,7 +251,7 @@ for exp_N in [1]:
     rigidPointsLocal = solver_circle.create_circle(discretization)
     startTime = time.time()
     for i in range(len(probedPcd)):
-    #for i in [0,1]:
+    #for i in range(20):
         print('point location:',i)
         if i == 70 and exp_N == '4':
             pass
