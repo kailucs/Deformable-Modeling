@@ -1,6 +1,6 @@
 # Deformable-Modeling
 Construct models of deformable objects using force-probe contacting and learning algorithm.
-test!
+
 ## System Overview
 ![arch](figures/architechture.png?raw=ture)
 
