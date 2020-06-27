@@ -1,6 +1,7 @@
 # Deformable-Modeling
 Construct models of deformable objects using force-probe contacting and learning algorithm.
-
+## Note
+This is the backup of the project, which is probably the version finished in August before we came to UIUC.
 ## System Overview
 ![arch](figures/architechture.png?raw=ture)
 
