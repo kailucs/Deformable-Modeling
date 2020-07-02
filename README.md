@@ -1,8 +1,10 @@
 # Deformable-Modeling
 Construct models of deformable objects using force-probe contacting and learning algorithm.
 
+TODO
+
 ## System Overview
-![arch](figures/architechture.png?raw=ture)
+![arch](figures/workflow_colored.png?raw=ture)
 
 ## Getting started
 ### Requirements
@@ -10,17 +12,15 @@ Construct models of deformable objects using force-probe contacting and learning
   * Hardware:
 
   * - UR5 (with force sensors)
-
     - A computer with a dedicated GPU(recommended)
     - Intel RealSense Camera SR300
     - Probe (can be any type)
 
-  * OS:  > Ubuntu 16.04
+  * OS:  Ubuntu 16.04
 
   * Environment:
 
-    - Python 2.7
-
+    - Python 2.7 / Python 3.5
     - UR API
     - Klamp't
     - librealsense & python API
@@ -29,11 +29,12 @@ Construct models of deformable objects using force-probe contacting and learning
 
 ### Installation
 
-Simply git clone the project.
+Simply git clone the project and check all the dependent libraries.
 
 ### Calibration
 First, do camera calibration to make the system work correctly. You can do all when connecting the robot.
 ```
+cd experiment
 python calibration_testing.py
 ```
 or
@@ -52,7 +53,7 @@ simply run
 ```
 python main.py --process [process-name]
 ```
-process can be physical or debugging.
+process can be physical mode or debugging mode in simulation.
 
 **or (recommend)**
 
@@ -96,3 +97,4 @@ Poke: (force, torque, displacement)
 - 2019.07.23 change line poking process: first reconstruct a probe list then poke. fix some vis bugs.
 - 2019.07.24 speed up getting pcd, test all process in physical, update data format, add future folder (2 camera in thread)
 - 2019.08.13 update the final version and data set.
+- 2020.07.02 TODO

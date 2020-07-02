@@ -1,6 +1,5 @@
 import os
 import argparse
-import calibration_testing
 import multiprocessing
 
 from config import DMConfig
@@ -9,8 +8,10 @@ from utils.data_collection_get_PCD import run_collection_PCD
 from utils.data_collection_process_pcd import run_collection_process_PCD
 from utils.convert_ply import run_convert_ply
 from utils.data_collection_process_pcd_with_curvature import run_calculation
+from utils.merge_pcd import merge_pcd
 
 from experiment.data_collection_probing import run_poking
+from experiment import calibration_testing
 
 # TODO: Focus on step mode, so run all need to update code someday.
 
@@ -76,16 +77,6 @@ def step_mode(config):
 
         run_poking(config)
         print('---Done')
-
-def merge_pcd(config):
-    os.system('rm -r '+os.path.join(config.exp_path,'tmp'))
-    os.system('mkdir '+os.path.join(config.exp_path,'tmp'))
-    os.system('cp -rf '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/processed ')
-                +os.path.join(config.exp_path,'tmp/processed'))
-    os.system(config.merge_cmd)
-    os.system('rm '+os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/TSDF_result.ply'))
-    os.system('cp -f '+os.path.join(config.exp_path,'tmp/TSDF_result.ply ')
-                +os.path.join(config.exp_path,'exp_'+str(config.exp_number)+'/TSDF_result.ply'))
 
 def main():
     """

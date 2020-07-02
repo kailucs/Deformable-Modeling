@@ -14,7 +14,7 @@ NLOOPS = 1000
 #point-fit is more robust to marker orientation estimation errors
 METHOD = 'point fit'
 #METHOD = 'transform fit'
-calidata_path = 'calibration_data/'
+calidata_path = 'data/calibration_data/'
 
 
 def transform_average(Ts):
