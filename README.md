@@ -2,7 +2,7 @@
 Construct models of deformable objects using force-probe contacting and learning algorithm.
 
 TODO
-![intro](figures/introduction.png){:height="100%" width="100%"}
+<img src="./figures/introduction.png" width = "300" height = "200" alt="图片名称" align=center />
 
 ## System Overview
 ![arch](figures/workflow_colored.png?raw=ture)
