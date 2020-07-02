@@ -6,7 +6,7 @@ TODO
 <img src="./figures/introduction.png" align=center />
 
 ## System Overview
-<img src="./figures/introduction.png" width=500 align=center />
+<img src="./figures/workflow_colored.png" width=600 align=center />
 
 ## Getting started
 ### Requirements
