@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 import random
-from klampt.math import vectorops as vo
+#from klampt.math import vectorops as vo # this is no longer used in the latest progress.
 import pickle
 
 def load_data(exp_path, probe_type='point', Xtype='loc',ytype='f',logfile=None):
@@ -29,7 +29,7 @@ def load_data(exp_path, probe_type='point', Xtype='loc',ytype='f',logfile=None):
         dataFile=open(exp_path+'probePcd.txt','r')
     elif probe_type == 'line':
         dataFile=open(exp_path+'probePcd_line_theta.txt','r')
-    elif probe_type == 'circle':
+    elif probe_type == 'circle' or probe_type == 'ellipse':
         dataFile=open(exp_path+'probePcd.txt','r')
         
     for line in dataFile:        
@@ -96,7 +96,7 @@ def load_data(exp_path, probe_type='point', Xtype='loc',ytype='f',logfile=None):
                 displacement.append(l2[4])
             dataFile.close()
             
-        elif probe_type == 'circle':
+        elif probe_type == 'cylinder' or probe_type == 'ellipse':
             torque_path = exp_path+probe_type+'/torque_'+str(i)+'.txt'
             torque=[]
             displacement=[]
@@ -303,7 +303,7 @@ def normalize_points(points, p_min=0, max_range=0):
     for i in range(3):
         points[:,i] = (points[:,i]-p_min[i])/max_range
     
-    #print('normalize config: ','min: ', p_min, 'max_range: ',max_range)
+    print('normalize config: ','min: ', p_min, 'max_range: ',max_range)
     return points 
 
 if __name__ == "__main__":
