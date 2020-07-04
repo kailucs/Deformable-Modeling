@@ -1,9 +1,9 @@
 import autosklearn.regression
 import sklearn
 import numpy as np
-from models.train_config import train_indexes_dense #TODO: del 'models.' if put back into data folder
+from train_config import train_indexes_dense #TODO: this file is originally in the data folder
 import pickle
-from models.data_loader import * #TODO: del 'models.' if put back into data folder
+from data_loader import * #TODO: this file is originally in the data folder
 
 def main():
     # load config
