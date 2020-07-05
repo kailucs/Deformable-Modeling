@@ -155,6 +155,12 @@ def main():
                 config.exp_number = args.exp
                 debugging_mode(config)
 
+        elif args.process == 'learn':
+            print('please refer to ./models folder')
+        
+        elif args.process == 'analysis':
+            print('please refer to ./analysis folder')
+            
         else:
             raise Exception("Invalid name for single process, chose from (calibration, physical, debugging)")
 

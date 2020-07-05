@@ -10,9 +10,11 @@ class DMConfig(object):
         self.ee_link_number = 7
         self.calibration_xform_path = 'calibrated_transforms/calibrated_camera_xform.txt'
         self.merge_cmd = './utils/merge_cpp_ws/Merge_pcd'
-        self.exp_path = './experiment_data/'
+        self.exp_path = './experiment_data/' # TODO:
         self.probe_type = 'point'
         self.use_mkdir_exp = False
+        self.models_foler = './models'
+        self.analysis_folder = './analysis'
 
         # ----------- experiment params
         self.exp_number = 0 #this will reset in the main function.       

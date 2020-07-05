@@ -1,33 +1,29 @@
 # Deformable-Modeling
-Construct models of deformable objects using force-probe contacting and learning algorithm.
-
-TODO
+A semi-empirical method for simulating contact with elastically deformable objects whose force response is learned using entirely data-driven models.
 
 <img src="./figures/introduction.png" align=center />
 
 ## System Overview
 <img src="./figures/workflow_colored.png" width=600 align=center />
+A point interaction model of a deformable object is first learned through data acquired with the system shown here after a small number of pokes. The model is then used in a semi-empircal simulator that solves for the deformation and contact wrench with an arbitrary rigid object. The color of the deformed object represents the amount of surface deformation.
 
 ## Getting started
 ### Requirements
 
   * Hardware:
 
-  * - UR5 (with force sensors)
+    - Robots with with force sensors (e.g. UR5e)  
     - A computer with a dedicated GPU(recommended)
-    - Intel RealSense Camera SR300
-    - Probe (can be any type)
+    - RGB-D Camera (e.g. Intel SR300)
+    - Probes
 
   * OS:  Ubuntu 16.04
 
   * Environment:
 
     - Python 2.7 / Python 3.5
-    - UR API
     - Klamp't
-    - librealsense & python API
-    - open3d
-    - numpy
+    - Open3D
 
 ### Installation
 
@@ -55,7 +51,6 @@ simply run
 ```
 python main.py --process [process-name]
 ```
-process can be physical mode or debugging mode in simulation.
 
 **or (recommend)**
 
@@ -65,38 +60,12 @@ check`config.py`, set `self.use_mkdir_exp = True` , then
 python main.py --process debugging --step y --probe point 
 ```
 
-## Step Mode
-
-In step mode, it will be easier to debug and make sure the robot works right.
-
-*note: when first power on ur5, need to swich control mode local then remote.*
-
-`calibration_testing`:Doing the calibration first.
-
-`run_collection_PCD(config)`:Robot move around the object and take pictures of it. Note that if need to chang the camera height and num of photos, need to change both `config.py`and `run_collection_PCD()`
-
-`run_collection_process_PCD(config)`:This process clean the pcd collected and speed up saving with `.npy`
-
-`merge_pcd(config)`:Use Kris Labrary's merge function and ICP method to fix the pcds.
-
-`run_convert_ply(config)`:Simple format convertor.
-
-`run_calculation(config)`:Process the final pcd, including cleaning, sorting, down sampling and selecting.
-
-`run_poking(config)`:Robot acting, probe types include ellipse, point and line. 
-
-## Data Framwork
-
-Point: (point, color, normal, theta, curvature)
-
-Poke: (force, torque, displacement)
-
 ## Version
 
-- 2019.07.16 first version.
-- 2019.07.19 add line probe mode, add transform from probe to EE, fix unit vector bug.
-- 2019.07.21 add duplicates removing, collision detection, and fix point cloud order.
-- 2019.07.23 change line poking process: first reconstruct a probe list then poke. fix some vis bugs.
-- 2019.07.24 speed up getting pcd, test all process in physical, update data format, add future folder (2 camera in thread)
-- 2019.08.13 update the final version and data set.
-- 2020.07.02 TODO
+- 2019.07.16 First version.
+- 2019.07.19 Add line probe mode, add transform from probe to EE, fix unit vector bug.
+- 2019.07.21 Add duplicates removing, collision detection, and fix point cloud order.
+- 2019.07.23 Change line poking process: first reconstruct a probe list then poke. fix some vis bugs.
+- 2019.07.24 Speed up getting pcd, test all process in physical, update data format, add future folder (2 camera in thread)
+- 2019.08.13 Update the final version and data set.
+- 2020.07.05 Update analysis, models, simulation, and data. Delete future foler. Reagrrange codes.
